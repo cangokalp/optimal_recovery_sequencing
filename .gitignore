@@ -1,0 +1,6 @@
+# ignore network files
+SiouxFalls/
+# ignore excel files
+*.xlsx
+# ignore DS_Store
+.DS_Store
