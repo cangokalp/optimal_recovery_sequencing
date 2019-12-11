@@ -4,3 +4,5 @@ SiouxFalls/
 *.xlsx
 # ignore DS_Store
 .DS_Store
+# ignore pickle files
+*.pickle

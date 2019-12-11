@@ -107,13 +107,13 @@ def read_scenario(fname='ScenarioAnalysis.xlsx', sname='Moderate_1'):
 
 
 def save(dict_to_save, fname):
-	fname = fname + '.pickle'
+	fname = 'saved_dictionaries/' + fname + '.pickle'
 	with open(fname, 'wb') as f:
 		pickle.dump(dict_to_save, f)
 
 
 def load(fname):
-	fname = fname + '.pickle'
+	fname = 'saved_dictionaries/' + fname + '.pickle'
 	with open(fname, 'rb') as f:
 		item = pickle.load(f)
 	return item
@@ -339,7 +339,7 @@ links_to_remove = damaged_links
 ###### WORSE BENEFIT ANALYSIS #######
 
 # if analysis haven't been done yet
-if not os.path.exists('worst_benefit_dict' + sname + '.pickle'):
+if not os.path.exists('saved_dictionaries/' + 'worst_benefit_dict' + sname + '.pickle'):
 
 	# for each bridge, find the effect on TSTT when that bridge is removed
 	# while keeping others
@@ -358,7 +358,7 @@ else:
 ###### BEST BENEFIT ANALYSIS #######
 seq_list = []
 # if analysis haven't been done yet:
-if not os.path.exists('best_benefit_dict' + sname + '.pickle'):
+if not os.path.exists('saved_dictionaries/' + 'best_benefit_dict' + sname + '.pickle'):
 
 	# for each bridge, find the effect on TSTT when that bridge is removed
 	# while keeping others
@@ -380,7 +380,7 @@ else:
 	bb = load('best_benefit_dict' + sname)
 	seq_list = load('seq_list' + sname)
 ###### FIND PRECEDENCE RELATIONSHIPS ######
-if not os.path.exists('precedence_dict' + sname + '.pickle'):
+if not os.path.exists('saved_dictionaries/' + 'precedence_dict' + sname + '.pickle'):
 
 	precedence = {} #if 1: 3,4 means 1 has to come before 3 and also 4
 	following = {} #if 3: 1,2 means 3 has to come after 1 and also 2
