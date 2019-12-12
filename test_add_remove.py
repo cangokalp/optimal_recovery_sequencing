@@ -11,88 +11,16 @@ from copy import deepcopy
 from tabulate import tabulate
 import os.path
 
-solve_count = 0
-class Seq:
+def save(dict_to_save, fname):
+	fname = 'saved_dictionaries/' + fname + '.pickle'
+	with open(fname, 'wb') as f:
+		pickle.dump(dict_to_save, f)
 
-	def __init__(self, link_id=None, parent=None, net=None, tstt_after=None, tstt_before=None, level=None, damaged_dict=None):
-		self.link_id = link_id
-		self.parent = parent
-		self.fathomed = False
-		self.path = []
-		self.days_past = 0
-		self.net = net
-		self.days = damage_dict[link_id]
-		self.tstt_before = tstt_before
-		self.tstt_after = tstt_after
-		self.benefit = tstt_after - tstt_before
-		self.level = level
-		self.damage_dict = damage_dict
-		self.assignChar()
-
-	def assignChar(self):
-		if self.parent != None:
-			prev_path = deepcopy(self.parent.path)
-			prev_path.append(self.link_id)
-			self.path = prev_path
-			self.path_set = set(self.path)
-			self.days_past = self.parent.days_past + self.days
-			self.realized = self.parent.realized + self.tstt_before*self.days
-
-		else:
-			self.path = [self.link_id]
-			self.realized = self.tstt_before*self.days
-			self.days_past = self.days
-
-	def setBounds(self, wb, bb):
-		remaining = list(set(damaged_links) - set(self.path))
-		self.ub = self.realized
-		self.lb = self.realized
-
-		ordered_days = []
-		orderedw_benefits = []
-		orderedb_benefits = []
-
-		sorted_d = sorted(damage_dict.items(), key=lambda x: x[1])
-
-		for key, value in sorted_d:
-		    # print("%s: %s" % (key, value))
-		    if key in remaining:
-		    	ordered_days.append(value)
-		    	orderedw_benefits.append(wb[key])
-		    	orderedb_benefits.append(bb[key])
-
-		bang4buck_b = np.array(orderedb_benefits)/np.array(ordered_days)
-		bang4buck_w = np.array(orderedw_benefits)/np.array(ordered_days)
-
-		days_b = [x for _,x in sorted(zip(bang4buck_b, ordered_days))]
-		b = [x for _,x in sorted(zip(bang4buck_b, orderedb_benefits))]
-		
-		days_w = [x for _,x in sorted(zip(bang4buck_w, ordered_days))]
-		w = [x for _,x in sorted(zip(bang4buck_w, orderedw_benefits))]
-
-		##b
-		for i in range(len(days_b)):
-			if i==0:
-				b_tstt = self.tstt_after
-			else:
-				b_tstt = b_tstt - b[i-1]
-
-			self.lb += b_tstt*days_b[i]
-
-		##w
-		for i in range(len(days_w)):
-			if i==0:
-				w_tstt = self.tstt_after
-			else:
-				w_tstt = w_tstt - w[i-1]
-
-			self.ub += w_tstt*days_w[i]
-
-
-
-def solve_UE(net=None):
-	net.userEquilibrium("FW", 1e4, 1e-3, net.averageExcessCost)
-
+def load(fname):
+	fname = 'saved_dictionaries/' + fname + '.pickle'
+	with open(fname, 'rb') as f:
+		item = pickle.load(f)
+	return item
 
 def read_scenario(fname='ScenarioAnalysis.xlsx', sname='Moderate_1'):
 	scenario_pd = pd.read_excel(fname, sname)
@@ -105,26 +33,14 @@ def read_scenario(fname='ScenarioAnalysis.xlsx', sname='Moderate_1'):
 		damage_dict[dlinks[i]] = cdays[i]
 	return damage_dict
 
-
-def save(dict_to_save, fname):
-	fname = 'saved_dictionaries/' + fname + '.pickle'
-	with open(fname, 'wb') as f:
-		pickle.dump(dict_to_save, f)
-
-
-def load(fname):
-	fname = 'saved_dictionaries/' + fname + '.pickle'
-	with open(fname, 'rb') as f:
-		item = pickle.load(f)
-	return item
-
+def solve_UE(net=None):
+	net.userEquilibrium("FW", 1e4, 1e-3, net.averageExcessCost)
 
 def find_tstt(net=None):
 	tx = 0
 	for ij in net.link:
 		tx += net.link[ij].cost * net.link[ij].flow
 	return tx
-
 
 def fix_one(net1, fixed_state, to_fix, tstt_state, days_state):
 	net = deepcopy(net1)
@@ -137,7 +53,6 @@ def fix_one(net1, fixed_state, to_fix, tstt_state, days_state):
 	days_state.append(duration)
 
 	return net, fixed_state, tstt_state, days_state
-
 
 def eval_sequence(net, order_list, after_eq_tstt, before_eq_tstt, if_list=None, importance=False):
 	days_list = []
@@ -167,7 +82,7 @@ def eval_sequence(net, order_list, after_eq_tstt, before_eq_tstt, if_list=None, 
 		tstt_after = find_tstt(net=net)
 		tstt_list.append(tstt_after)
 
-		seq = Seq(link_id=link_id, parent=prev_linkid, net=deepcopy(net), tstt_after=tstt_after,
+		seq = Node(link_id=link_id, parent=prev_linkid, net=deepcopy(net), tstt_after=tstt_after,
 				  tstt_before=tstt_before, level=level, days=damage_dict[link_id], T=T)
 		seq_list.append(seq)
 		prev_linkid = seq
@@ -307,7 +222,7 @@ def expand_seq(seq, lad, level):
 	net.link[lad].add_link_back()
 	solve_UE(net=net)
 	tstt_after = find_tstt(net=net)
-	seq = Seq(link_id=lad, parent=seq, net=net, tstt_after=tstt_after, tstt_before=tstt_before, level=level, damaged_dict=damage_dict)
+	seq = Node(link_id=lad, parent=seq, net=net, tstt_after=tstt_after, tstt_before=tstt_before, level=level, damaged_dict=damage_dict)
 	seq.setBounds(wb, bb)
 	return seq
 
@@ -370,7 +285,7 @@ if not os.path.exists('saved_dictionaries/' + 'best_benefit_dict' + sname + '.pi
 		solve_UE(net=test_net)
 		tstt_after = find_tstt(test_net)
 
-		seq_list.append(Seq(link_id=link, parent=None, net=test_net, tstt_after=tstt_after, tstt_before=after_eq_tstt, level=1, damaged_dict=damage_dict))
+		seq_list.append(Node(link_id=link, parent=None, net=test_net, tstt_after=tstt_after, tstt_before=after_eq_tstt, level=1, damaged_dict=damage_dict))
 		bb[link] = after_eq_tstt - tstt_after
 	save(bb, 'best_benefit_dict' + sname)
 	save(seq_list, 'seq_list' + sname)
@@ -1055,7 +970,7 @@ save(alive_list[0], 'dp_soln' + sname)
 	# import operator
 	# sorted_x = sorted(seq_dict.items(), key=operator.itemgetter(1))
 
-	# print(tabulate(sorted_x, headers=['Sequence','Total_Cost']))
+	# print(tabulate(sorted_x, headers=['Nodeuence','Total_Cost']))
 	# pdb.set_trace()
 
 
