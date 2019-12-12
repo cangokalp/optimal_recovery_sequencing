@@ -242,44 +242,44 @@ def best_benefit(after, links_to_remove, after_eq_tstt):
 
     else:
         bb = load('best_benefit_dict' + sname)
-        seq_list = load('seq_list' + sname)
+        # seq_list = load('seq_list' + sname)
 
     return bb
 
 
-def main():
+# def main():
 
-    SNAME = 'Moderate_5'
-    NETFILE = "SiouxFalls/SiouxFalls_net.tntp"
-    TRIPFILE = "SiouxFalls/SiouxFalls_trips.tntp"
+SNAME = 'Moderate_5'
+NETFILE = "SiouxFalls/SiouxFalls_net.tntp"
+TRIPFILE = "SiouxFalls/SiouxFalls_trips.tntp"
 
-    damage_dict = read_scenario(sname=sname)
-    damaged_links = damaged_dict.keys()
+damage_dict = read_scenario(sname=sname)
+damaged_links = damaged_dict.keys()
 
-    net_before = create_network(NETFILE, TRIPFILE)
-    solve_UE(net=net_before)
-    before_eq_tstt = find_tstt(net=net_before)
+net_before = create_network(NETFILE, TRIPFILE)
+solve_UE(net=net_before)
+before_eq_tstt = find_tstt(net=net_before)
 
-    net_after = create_network(NETFILE, TRIPFILE)
-    for link in damaged_links:
-        after.link[link].remove()
-    solve_UE(net=net_after)
-    after_eq_tstt = find_tstt(net=net_after)
+net_after = create_network(NETFILE, TRIPFILE)
+for link in damaged_links:
+    after.link[link].remove()
+solve_UE(net=net_after)
+after_eq_tstt = find_tstt(net=net_after)
 
-    wb = worst_benefits(net_before, damaged_links, before_eq_tstt)
-    bb = best_benefit(net_after, damaged_links, after_eq_tstt)
+wb = worst_benefits(net_before, damaged_links, before_eq_tstt)
+bb = best_benefit(net_after, damaged_links, after_eq_tstt)
 
-    # Create start and end node
-    start_node = Node(tstt_after=before_eq_tstt)
-    start_node.realized = 0
-    start_node.level = 0
-    start_node.visited = set([])
+# Create start and end node
+start_node = Node(tstt_after=before_eq_tstt)
+start_node.realized = 0
+start_node.level = 0
+start_node.visited = set([])
 
-    end_node = Node()
-    end_node.level = len(damaged_links) + 1
-    end_node.visited = set([damaged_links, 'end'])
+end_node = Node()
+end_node.level = len(damaged_links) + 1
+end_node.visited = set([damaged_links, 'end'])
 
-    astar(damage_dict, wb, bb, start_node, end_node)
+astar(damage_dict, wb, bb, start_node, end_node)
 
-if __name__ == '__main__':
-    main()
+# if __name__ == '__main__':
+#     main()
