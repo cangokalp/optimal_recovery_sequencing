@@ -293,7 +293,7 @@ if not os.path.exists('saved_dictionaries/' + 'best_benefit_dict' + sname + '.pi
 
 else:
 	bb = load('best_benefit_dict' + sname)
-	seq_list = load('seq_list' + sname)
+	# seq_list = load('seq_list' + sname)
 ###### FIND PRECEDENCE RELATIONSHIPS ######
 if not os.path.exists('saved_dictionaries/' + 'precedence_dict' + sname + '.pickle'):
 
