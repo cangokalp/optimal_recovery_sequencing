@@ -108,7 +108,7 @@ def get_successors(node, wb, bb, to_visit):
     else:
         successors = not_visited
 
-    return not_visited
+    return successors
 
 
 def expand_sequence(node, a_link, level, damaged_dict):
@@ -312,7 +312,7 @@ def main():
     bb = best_benefit(net_after, damaged_links, after_eq_tstt)
 
     # Create start and end node
-    start_node = Node(tstt_after=before_eq_tstt, net=net_after)
+    start_node = Node(tstt_after=after_eq_tstt, net=net_after)
     start_node.realized = 0
     start_node.level = 0
     start_node.visited = set([])
