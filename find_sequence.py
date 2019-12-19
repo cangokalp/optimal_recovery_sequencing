@@ -6,7 +6,7 @@ TRIPFILE = "SiouxFalls/SiouxFalls_trips.tntp"
 
 
 class Node():
-    """A node class for A* Pathfinding"""
+    """A node class for bi-directional search for pathfinding"""
 
     def __init__(self, visited=None, link_id=None, parent=None, net=None, tstt_after=None, tstt_before=None, level=None, damaged_dict=None):
         self.parent = parent
@@ -49,7 +49,7 @@ class Node():
         return self.visited == other.visited
 
 
-def set_bounds(node, wb, bb, remaining):
+def set_bounds_f(node, wb, bb, remaining):
     node.ub = node.realized
     node.lb = node.realized
 
@@ -122,107 +122,119 @@ def expand_sequence(node, a_link, level, damaged_dict):
                 tstt_before=tstt_before, level=level, damaged_dict=damaged_dict)
     return node
 
+def expand_forward(damaged_dict, wb, bb, start_node, end_node, best_ub, open_list_b, open_list_f, closed_list_b, closed_list_f):
+    # Loop until you find the end
+    print('forward search is in progress...')
+    tap_solved = 0
+    
 
-def astar(damaged_dict, wb, bb, start_node, end_node):
+    # Get the current node
+    current_node = open_list_f[0]
+    current_index = 0
+    for index, item in enumerate(open_list_f):
+        if item.f < current_node.f:
+            current_node = item
+            current_index = index
+
+    # Pop current off open list, add to closed list
+    open_list_f.pop(current_index)
+    closed_list_f.append(current_node)
+
+    # Found the goal
+    if current_node == end_node:
+        return current_node.path
+
+    if current_node.f > best_ub:
+        continue
+
+
+
+    # Generate children
+    eligible_expansions = get_successors(current_node, wb, bb, to_visit)
+    
+    children = []
+
+    for a_link in eligible_expansions:
+
+        # Create new node
+        new_node = expand_sequence(
+            current_node, a_link, level=current_node.level + 1, damaged_dict=damaged_dict)
+        tap_solved += 1
+        # Append
+        children.append(new_node)
+
+    print('open_list_f length: ', len(open_list_f))
+    print('number of taps solved: ', tap_solved)
+    # Loop through children
+    for child in children:
+
+        remaining = get_successors(child, wb, bb, to_visit)
+        # set upper and lower bounds
+        set_bounds_f(child, wb, bb, remaining)
+        best_ub = min(best_ub, child.ub)
+
+        # Create the f, g, and h values
+        child.g = child.realized
+        # child.h = child.lb - child.g
+        # child.f = child.g + child.h
+        child.f = child.lb
+
+        if child.f > best_ub:
+            continue
+
+        # Child is already in the open list
+        removal = []
+        for open_node in open_list_f:
+            if child == open_node:
+                if child.g > open_node.g:
+                    continue
+                else:
+                    removal.append(open_node)
+
+        for open_node in removal:
+            open_list_f.remove(open_node)
+
+        # Child is on the closed list
+        for closed_node in closed_list_f:
+            if child == closed_node:
+                if child.g > closed_node.g:
+                    continue
+
+        # Add the child to the open list
+        open_list_f.append(child)
+
+    return open_list_f, closed_list_f
+
+def expand_backward(damaged_dict, wb, bb, start_node, end_node, best_ub, open_list_b, open_list_f, closed_list_b, closed_list_f):
+    
+    return open_list_b, closed_list_b
+
+def search(damaged_dict, wb, bb, start_node, end_node):
     """Returns the best order to visit the set of nodes"""
 
     damaged_links = damaged_dict.keys()
     repair_days = damaged_dict.values()
     to_visit = set(damaged_links)
 
-    # Initialize both open and closed list
-    open_list = []
-    closed_list = []
-
+    # Initialize both open and closed list for forward and backward directions
+    open_list_f = []
+    closed_list_f = []
     # Add the start node
-    open_list.append(start_node)
     best_ub = np.inf
-    # Loop until you find the end
-    print('a-star search starting...')
-    tap_solved = 0
-    while len(open_list) > 0:
+    open_list_f.append(start_node)
 
-        # Get the current node
-        current_node = open_list[0]
-        current_index = 0
-        for index, item in enumerate(open_list):
-            if item.f < current_node.f:
-                current_node = item
-                current_index = index
+    open_list_b = []
+    closed_list_b = []
+    open_list_b.append(end_node)
 
-        # Pop current off open list, add to closed list
-        open_list.pop(current_index)
-        closed_list.append(current_node)
-
-        # Found the goal
-        if current_node == end_node:
-            return current_node.path
-
-        if current_node.f > best_ub:
-            continue
-
-
-
-        # Generate children
-        eligible_expansions = get_successors(current_node, wb, bb, to_visit)
-        
-        children = []
-
-        for a_link in eligible_expansions:
-
-            # Create new node
-            new_node = expand_sequence(
-                current_node, a_link, level=current_node.level + 1, damaged_dict=damaged_dict)
-            tap_solved += 1
-            # Append
-            children.append(new_node)
-
-        print('open_list length: ', len(open_list))
-        print('number of taps solved: ', tap_solved)
-        # Loop through children
-        for child in children:
-
-            remaining = get_successors(child, wb, bb, to_visit)
-            # set upper and lower bounds
-            set_bounds(child, wb, bb, remaining)
-            best_ub = min(best_ub, child.ub)
-
-            # Create the f, g, and h values
-            child.g = child.realized
-            # child.h = child.lb - child.g
-            # child.f = child.g + child.h
-            child.f = child.lb
-
-            if child.f > best_ub:
-                continue
-
-            # Child is already in the open list
-            removal = []
-            for open_node in open_list:
-                if child == open_node:
-                    if child.g > open_node.g:
-                        continue
-                    else:
-                        removal.append(open_node)
-
-            for open_node in removal:
-                open_list.remove(open_node)
-
-            # Child is on the closed list
-            for closed_node in closed_list:
-                if child == closed_node:
-                    if child.g > closed_node.g:
-                        continue
-
-            # Add the child to the open list
-            open_list.append(child)
-
+    open_list_f, closed_list_f = expand_forward(damaged_dict, wb, bb, start_node, end_node, best_ub, open_list_b, open_list_f, closed_list_b, closed_list_f)
+    open_list_b, closed_list_b = expand_backward(damaged_dict, wb, bb, start_node, end_node, best_ub, open_list_b, open_list_f, closed_list_b, closed_list_f)
 
 
 def create_network(netfile=None, tripfile=None):
     return Network(netfile, tripfile)
 
-def worst_benefits(before, links_to_remove, before_eq_tstt):
+def worst_benefit(before, links_to_remove, before_eq_tstt):
     if not os.path.exists('saved_dictionaries/' + 'worst_benefit_dict' + SNAME + '.pickle'):
 
         # for each bridge, find the effect on TSTT when that bridge is removed
@@ -308,7 +320,7 @@ def main():
     net_after, after_eq_tstt = state_after(damaged_links)
     net_before, before_eq_tstt = state_before(damaged_links)
 
-    wb = worst_benefits(net_before, damaged_links, before_eq_tstt)
+    wb = worst_benefit(net_before, damaged_links, before_eq_tstt)
     bb = best_benefit(net_after, damaged_links, after_eq_tstt)
 
     # Create start and end node
@@ -321,7 +333,7 @@ def main():
     end_node.level = len(damaged_links) + 1
     end_node.visited = set(damaged_links).union(['end'])
 
-    astar(damaged_dict, wb, bb, start_node, end_node)
+    search(damaged_dict, wb, bb, start_node, end_node)
 
 if __name__ == '__main__':
     main()
