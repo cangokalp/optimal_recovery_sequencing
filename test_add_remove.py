@@ -226,158 +226,161 @@ def expand_seq(seq, lad, level):
 	seq.setBounds(wb, bb)
 	return seq
 
-sname = 'Moderate_5'
-# for sname in snames:
-mydict = {}
-damage_dict = read_scenario(sname=sname)
-
-damaged_links = damage_dict.keys()
-alldays = damage_dict.values()
-
-N = 0
-for i in alldays:
-	N += i
-links_to_remove = damaged_links
-
-# Find before earthquake equilibrium
-# before = Network("SiouxFalls_net.tntp", "SiouxFalls_trips.tntp")
-# solve_UE(net=before)
-# before_eq_tstt = find_tstt(before)
-
-# Find after earthquake equilibrium
-# after = Network("SiouxFalls_net.tntp", "SiouxFalls_trips.tntp")
-# for link in links_to_remove:
-# 	after.link[link].remove()
-# solve_UE(net=after)
-# after_eq_tstt = find_tstt(after)
-
-###### WORSE BENEFIT ANALYSIS #######
-
-# if analysis haven't been done yet
-if not os.path.exists('saved_dictionaries/' + 'worst_benefit_dict' + sname + '.pickle'):
-
-	# for each bridge, find the effect on TSTT when that bridge is removed
-	# while keeping others
-	wb = {}
-	for link in links_to_remove:
-		test_net = deepcopy(before)
-		test_net.link[link].remove()
-		solve_UE(net=test_net)
-		wb[link] = find_tstt(test_net) - before_eq_tstt
-	# save dictionary
-	save(wb, 'worst_benefit_dict' + sname)
-
-else:
-	wb = load('worst_benefit_dict' + sname)
-
-###### BEST BENEFIT ANALYSIS #######
-seq_list = []
-# if analysis haven't been done yet:
-if not os.path.exists('saved_dictionaries/' + 'best_benefit_dict' + sname + '.pickle'):
-
-	# for each bridge, find the effect on TSTT when that bridge is removed
-	# while keeping others
-	bb = {}
-
-	for link in links_to_remove:
-		test_net = deepcopy(after)
-		test_net.link[link].add_link_back()
-		solve_UE(net=test_net)
-		tstt_after = find_tstt(test_net)
-
-		seq_list.append(Node(link_id=link, parent=None, net=test_net, tstt_after=tstt_after, tstt_before=after_eq_tstt, level=1, damaged_dict=damage_dict))
-		bb[link] = after_eq_tstt - tstt_after
-	save(bb, 'best_benefit_dict' + sname)
-	save(seq_list, 'seq_list' + sname)
+# 
 
 
-else:
-	bb = load('best_benefit_dict' + sname)
-	# seq_list = load('seq_list' + sname)
-###### FIND PRECEDENCE RELATIONSHIPS ######
-if not os.path.exists('saved_dictionaries/' + 'precedence_dict' + sname + '.pickle'):
+# sname = 'Moderate_5'
+# # for sname in snames:
+# mydict = {}
+# damage_dict = read_scenario(sname=sname)
 
-	precedence = {} #if 1: 3,4 means 1 has to come before 3 and also 4
-	following = {} #if 3: 1,2 means 3 has to come after 1 and also 2
+# damaged_links = damage_dict.keys()
+# alldays = damage_dict.values()
 
-	for a_link in links_to_remove:
-		for other in links_to_remove:
-			if a_link != other:
-				if wb[a_link] * damage_dict[other] - bb[other] * damage_dict[a_link] > 0:
-					if a_link in precedence.keys():
-						precedence[a_link].append(other)
-					else:
-						precedence[a_link] = [other]
-					if other in following.keys():
-						following[other].append(a_link)
-					else:
-						following[other] = [a_link]
+# N = 0
+# for i in alldays:
+# 	N += i
+# links_to_remove = damaged_links
 
-	save(precedence, 'precedence_dict'+ sname)
-	save(following, 'following_dict'+ sname)
-else:
-	precedence = load('precedence_dict'+ sname)
-	following = load('following_dict'+ sname)
+# # Find before earthquake equilibrium
+# # before = Network("SiouxFalls_net.tntp", "SiouxFalls_trips.tntp")
+# # solve_UE(net=before)
+# # before_eq_tstt = find_tstt(before)
 
-# start sequences
-## first pruning by precedence, if 2 has to follow something you cannot start with 2
-fathomed_seqlist = []
-for seq in seq_list:
-	if seq.link_id in following.keys():
-		fathomed_seqlist.append(seq)
+# # Find after earthquake equilibrium
+# # after = Network("SiouxFalls_net.tntp", "SiouxFalls_trips.tntp")
+# # for link in links_to_remove:
+# # 	after.link[link].remove()
+# # solve_UE(net=after)
+# # after_eq_tstt = find_tstt(after)
 
-#TODO 
-# implemennt 2 pair elimination 1-2 vs 2-1 without solving
-# implement that if 3-2-1 solved 3-1-2 you can get the solution from the other
+# ###### WORSE BENEFIT ANALYSIS #######
 
-alive_list = list(set(seq_list) - set(fathomed_seqlist))
-### expand sequences here
+# # if analysis haven't been done yet
+# if not os.path.exists('saved_dictionaries/' + 'worst_benefit_dict' + sname + '.pickle'):
 
-level = 1
-print('max_length: ', len(damaged_links))
-tot_solved = 2*len(damaged_links) + 2
-while level < len(damaged_links):
-	level += 1
-	new_seqs = []
-	for aseq in alive_list:
-		possible_additions = list(set(damaged_links)-set(aseq.path))
-		following_keys = [i for i in following.keys()]
-		for j in possible_additions:
-			if j in following_keys:
-				follows = following[j]
-				if len(set(follows).difference(set(aseq.path))) == 0:
-					seq = expand_seq(seq=aseq, lad=j, level=level)
-					new_seqs.append(seq)
-			else:
-				seq = expand_seq(seq=aseq, lad=j, level=level)
-				new_seqs.append(seq)
+# 	# for each bridge, find the effect on TSTT when that bridge is removed
+# 	# while keeping others
+# 	wb = {}
+# 	for link in links_to_remove:
+# 		test_net = deepcopy(before)
+# 		test_net.link[link].remove()
+# 		solve_UE(net=test_net)
+# 		wb[link] = find_tstt(test_net) - before_eq_tstt
+# 	# save dictionary
+# 	save(wb, 'worst_benefit_dict' + sname)
 
-	seq_list = new_seqs	
-	print('-------')
-	print(level)
-	counting = 0
-	for i in seq_list:
-		counting +=1
-		print('level ' + str(level) + ', seq ' + str(counting) + ':' + '\n')
-		print(i.path)
+# else:
+# 	wb = load('worst_benefit_dict' + sname)
 
-	tot_solved += counting
-	print('length of sequence list before pruning: ', len(seq_list))
-	alive_list = prune(seq_list)
-	print('pruning completed')
+# ###### BEST BENEFIT ANALYSIS #######
+# seq_list = []
+# # if analysis haven't been done yet:
+# if not os.path.exists('saved_dictionaries/' + 'best_benefit_dict' + sname + '.pickle'):
 
-	counting = 0
-	for i in alive_list:
-		counting +=1
-		print('alive in level ' + str(level) + ', seq ' + str(counting) + ':' + '\n')
-		print(i.path)
-	print('length of alive sequences: ', len(alive_list))
+# 	# for each bridge, find the effect on TSTT when that bridge is removed
+# 	# while keeping others
+# 	bb = {}
+
+# 	for link in links_to_remove:
+# 		test_net = deepcopy(after)
+# 		test_net.link[link].add_link_back()
+# 		solve_UE(net=test_net)
+# 		tstt_after = find_tstt(test_net)
+
+# 		seq_list.append(Node(link_id=link, parent=None, net=test_net, tstt_after=tstt_after, tstt_before=after_eq_tstt, level=1, damaged_dict=damage_dict))
+# 		bb[link] = after_eq_tstt - tstt_after
+# 	save(bb, 'best_benefit_dict' + sname)
+# 	save(seq_list, 'seq_list' + sname)
 
 
-pdb.set_trace()
-print('# TAP solved: ', tot_solved)
-print(alive_list[0].path)
-save(alive_list[0], 'dp_soln' + sname)
+# else:
+# 	bb = load('best_benefit_dict' + sname)
+# 	# seq_list = load('seq_list' + sname)
+# ###### FIND PRECEDENCE RELATIONSHIPS ######
+# if not os.path.exists('saved_dictionaries/' + 'precedence_dict' + sname + '.pickle'):
+
+# 	precedence = {} #if 1: 3,4 means 1 has to come before 3 and also 4
+# 	following = {} #if 3: 1,2 means 3 has to come after 1 and also 2
+
+# 	for a_link in links_to_remove:
+# 		for other in links_to_remove:
+# 			if a_link != other:
+# 				if wb[a_link] * damage_dict[other] - bb[other] * damage_dict[a_link] > 0:
+# 					if a_link in precedence.keys():
+# 						precedence[a_link].append(other)
+# 					else:
+# 						precedence[a_link] = [other]
+# 					if other in following.keys():
+# 						following[other].append(a_link)
+# 					else:
+# 						following[other] = [a_link]
+
+# 	save(precedence, 'precedence_dict'+ sname)
+# 	save(following, 'following_dict'+ sname)
+# else:
+# 	precedence = load('precedence_dict'+ sname)
+# 	following = load('following_dict'+ sname)
+
+# # start sequences
+# ## first pruning by precedence, if 2 has to follow something you cannot start with 2
+# fathomed_seqlist = []
+# for seq in seq_list:
+# 	if seq.link_id in following.keys():
+# 		fathomed_seqlist.append(seq)
+
+# #TODO 
+# # implemennt 2 pair elimination 1-2 vs 2-1 without solving
+# # implement that if 3-2-1 solved 3-1-2 you can get the solution from the other
+
+# alive_list = list(set(seq_list) - set(fathomed_seqlist))
+# ### expand sequences here
+
+# level = 1
+# print('max_length: ', len(damaged_links))
+# tot_solved = 2*len(damaged_links) + 2
+# while level < len(damaged_links):
+# 	level += 1
+# 	new_seqs = []
+# 	for aseq in alive_list:
+# 		possible_additions = list(set(damaged_links)-set(aseq.path))
+# 		following_keys = [i for i in following.keys()]
+# 		for j in possible_additions:
+# 			if j in following_keys:
+# 				follows = following[j]
+# 				if len(set(follows).difference(set(aseq.path))) == 0:
+# 					seq = expand_seq(seq=aseq, lad=j, level=level)
+# 					new_seqs.append(seq)
+# 			else:
+# 				seq = expand_seq(seq=aseq, lad=j, level=level)
+# 				new_seqs.append(seq)
+
+# 	seq_list = new_seqs	
+# 	print('-------')
+# 	print(level)
+# 	counting = 0
+# 	for i in seq_list:
+# 		counting +=1
+# 		print('level ' + str(level) + ', seq ' + str(counting) + ':' + '\n')
+# 		print(i.path)
+
+# 	tot_solved += counting
+# 	print('length of sequence list before pruning: ', len(seq_list))
+# 	alive_list = prune(seq_list)
+# 	print('pruning completed')
+
+# 	counting = 0
+# 	for i in alive_list:
+# 		counting +=1
+# 		print('alive in level ' + str(level) + ', seq ' + str(counting) + ':' + '\n')
+# 		print(i.path)
+# 	print('length of alive sequences: ', len(alive_list))
+
+
+# pdb.set_trace()
+# print('# TAP solved: ', tot_solved)
+# print(alive_list[0].path)
+# save(alive_list[0], 'dp_soln' + sname)
 
 
 ##### Compare it to importance factor
