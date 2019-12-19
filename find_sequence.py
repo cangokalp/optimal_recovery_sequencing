@@ -94,7 +94,7 @@ def set_bounds_f(node, wb, bb, remaining):
         node.ub += w_tstt * days_w[i]
 
 
-def get_successors(node, wb, bb, to_visit):
+def get_successors_f(node, wb, bb, to_visit):
     """given a state, returns list of bridges that has not been fixed yet"""
     not_visited = to_visit.difference(node.visited)
     successors = []
@@ -108,10 +108,27 @@ def get_successors(node, wb, bb, to_visit):
     else:
         successors = not_visited
 
-    return not_visited
+    return successors
+
+def get_successors_b(node, wb, bb, to_visit):
+    """given a state, returns list of bridges that has not been removed yet"""
+    not_visited = node.visited.intersection(to_visit)
+    successors = []
 
 
-def expand_sequence(node, a_link, level, damaged_dict):
+    if node.level != len(node.damaged_dict.keys()) + 1:
+        tail = node.path[-1]
+        for a_link in not_visited:
+            if wb[a_link] * node.damaged_dict[tail] - bb[tail] * node.damaged_dict[a_link] > 0:
+                continue
+            successors.append(a_link)
+    else:
+        successors = not_visited
+
+    return successors
+
+
+def expand_sequence_f(node, a_link, level, damaged_dict):
     """given a link and a node, it expands the sequence"""
     tstt_before = node.tstt_after
     net = deepcopy(node.net)
@@ -121,6 +138,18 @@ def expand_sequence(node, a_link, level, damaged_dict):
     node = Node(link_id=a_link, parent=node, net=net, tstt_after=tstt_after,
                 tstt_before=tstt_before, level=level, damaged_dict=damaged_dict)
     return node
+
+def expand_sequence_b(node, a_link, level, damaged_dict):
+    """given a link and a node, it expands the sequence"""
+    tstt_after = node.tstt_before
+    net = deepcopy(node.net)
+    net_after.link[a_link].remove()
+    solve_UE(net=net)
+    tstt_before = find_tstt(net=net)
+    node = Node(link_id=a_link, parent=node, net=net, tstt_after=tstt_after,
+                tstt_before=tstt_before, level=level, damaged_dict=damaged_dict)
+    return node
+
 
 def expand_forward(damaged_dict, wb, bb, start_node, end_node, best_ub, open_list_b, open_list_f, closed_list_b, closed_list_f):
     # Loop until you find the end
@@ -150,14 +179,14 @@ def expand_forward(damaged_dict, wb, bb, start_node, end_node, best_ub, open_lis
 
 
     # Generate children
-    eligible_expansions = get_successors(current_node, wb, bb, to_visit)
+    eligible_expansions = get_successors_f(current_node, wb, bb, to_visit)
     
     children = []
 
     for a_link in eligible_expansions:
 
         # Create new node
-        new_node = expand_sequence(
+        new_node = expand_sequence_f(
             current_node, a_link, level=current_node.level + 1, damaged_dict=damaged_dict)
         tap_solved += 1
         # Append
@@ -168,7 +197,7 @@ def expand_forward(damaged_dict, wb, bb, start_node, end_node, best_ub, open_lis
     # Loop through children
     for child in children:
 
-        remaining = get_successors(child, wb, bb, to_visit)
+        remaining = get_successors_f(child, wb, bb, to_visit)
         # set upper and lower bounds
         set_bounds_f(child, wb, bb, remaining)
         best_ub = min(best_ub, child.ub)
@@ -207,6 +236,82 @@ def expand_forward(damaged_dict, wb, bb, start_node, end_node, best_ub, open_lis
 
 def expand_backward(damaged_dict, wb, bb, start_node, end_node, best_ub, open_list_b, open_list_f, closed_list_b, closed_list_f):
     
+    # Loop until you find the end
+    print('backwards search is in progress...')
+    tap_solved = 0
+    
+    # Get the current node
+    current_node = open_list_b[0]
+    current_index = 0
+    for index, item in enumerate(open_list_b):
+        if item.f < current_node.f:
+            current_node = item
+            current_index = index
+
+    # Pop current off open list, add to closed list
+    open_list_b.pop(current_index)
+    closed_list_b.append(current_node)
+
+    # Found the goal
+    if current_node == start_node:
+        return current_node.path
+
+    if current_node.f > best_ub:
+        continue
+
+    # Generate children
+    eligible_expansions = get_successors_b(current_node, wb, bb, to_visit)
+    
+    children = []
+
+    for a_link in eligible_expansions:
+
+        # Create new node
+        new_node = expand_sequence_b(
+            current_node, a_link, level=current_node.level -1 , damaged_dict=damaged_dict)
+        tap_solved += 1
+        # Append
+        children.append(new_node)
+
+    print('open_list_b length: ', len(open_list_b))
+    print('number of taps solved: ', tap_solved)
+    # Loop through children
+    for child in children:
+
+        remaining = get_successors_b(child, wb, bb, to_visit)
+        # set upper and lower bounds
+        set_bounds_f(child, wb, bb, remaining)
+        best_ub = min(best_ub, child.ub)
+
+        # Create the f, g, and h values
+        child.g = child.realized
+        # child.h = child.lb - child.g
+        # child.f = child.g + child.h
+        child.f = child.lb
+
+        if child.f > best_ub:
+            continue
+
+        # Child is already in the open list
+        removal = []
+        for open_node in open_list_b:
+            if child == open_node:
+                if child.g > open_node.g:
+                    continue
+                else:
+                    removal.append(open_node)
+
+        for open_node in removal:
+            open_list_b.remove(open_node)
+
+        # Child is on the closed list
+        for closed_node in closed_list_b:
+            if child == closed_node:
+                if child.g > closed_node.g:
+                    continue
+
+        # Add the child to the open list
+        open_list_b.append(child)
     return open_list_b, closed_list_b
 
 def search(damaged_dict, wb, bb, start_node, end_node):
@@ -227,8 +332,8 @@ def search(damaged_dict, wb, bb, start_node, end_node):
     closed_list_b = []
     open_list_b.append(end_node)
 
-    open_list_f, closed_list_f = expand_forward(damaged_dict, wb, bb, start_node, end_node, best_ub, open_list_b, open_list_f, closed_list_b, closed_list_f)
-    open_list_b, closed_list_b = expand_backward(damaged_dict, wb, bb, start_node, end_node, best_ub, open_list_b, open_list_f, closed_list_b, closed_list_f)
+    open_list_f, closed_list_f = expand_forward(damaged_dict, wb, bb, start_node, end_node, best_ub, open_list_b, open_list_f, closed_list_b, closed_list_f, to_visit)
+    open_list_b, closed_list_b = expand_backward(damaged_dict, wb, bb, start_node, end_node, best_ub, open_list_b, open_list_f, closed_list_b, closed_list_f, to_visit)
 
 
 def create_network(netfile=None, tripfile=None):
@@ -324,12 +429,12 @@ def main():
     bb = best_benefit(net_after, damaged_links, after_eq_tstt)
 
     # Create start and end node
-    start_node = Node(tstt_after=before_eq_tstt, net=net_after)
+    start_node = Node(tstt_after=after_eq_tstt, net=net_after)
     start_node.realized = 0
     start_node.level = 0
     start_node.visited = set([])
 
-    end_node = Node()
+    end_node = Node(tstt_before=before_eq_tstt, net=net_before)
     end_node.level = len(damaged_links) + 1
     end_node.visited = set(damaged_links).union(['end'])
 
