@@ -1,8 +1,11 @@
 # ignore network files
 SiouxFalls/
+__pycache__/
 # ignore excel files
 *.xlsx
 # ignore DS_Store
 .DS_Store
 # ignore pickle files
 *.pickle
+# ignore python cache files
+*.pyc
