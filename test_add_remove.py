@@ -49,25 +49,27 @@ def net_update(net):
        3. Set path costs based on new link costs (self.path[].cost), see path.py
     """
     f = "flows.txt"
-	with open(f, "r") as flow_file:
-	    for line in flow_file.readlines():
-	        ij = str(line[:line.find(' ')])
-	        line = line[line.find(' '):].strip()
-	        flow = float(line[:line.find(' ')])
-	        line = line[line.find(' '):].strip()
-	        cost = float(line.strip())
-	        net.link[ij].flow = flow
-	        net.link[ij].cost = cost
+    with open(f, "r") as flow_file:
+        for line in flow_file.readlines():
+            ij = str(line[:line.find(' ')])
+            line = line[line.find(' '):].strip()
+            flow = float(line[:line.find(' ')])
+            line = line[line.find(' '):].strip()
+            cost = float(line.strip())
+            net.link[ij].flow = flow
+            net.link[ij].cost = cost
 
-	f = "full_log.txt"
-	with open(f, "r") as log_file:
-	    last_line = log_file.readlines()[-1]
-	    obj = last_line[last_line.find('obj') + 3:].strip()
-	    tstt = float(obj[:obj.find(',')])
-	    log_file.close()
+    f = "full_log.txt"
+    with open(f, "r") as log_file:
+        last_line = log_file.readlines()[-1]
+        obj = last_line[last_line.find('obj') + 3:].strip()
+        tstt = float(obj[:obj.find(',')])
+        log_file.close()
 
     return tstt
 
+def solve_UE_old(net=None):
+    net.userEquilibrium("FW", 1e4, 1e-3, net.averageExcessCost)
 
 def solve_UE(net=None):
     #### net.userEquilibrium("FW", 1e4, 1e-3, net.averageExcessCost)
@@ -77,26 +79,26 @@ def solve_UE(net=None):
     networkFileName = "current_net.tntp"
 
     df = pd.read_csv(networkFileName, 'r+', delimiter='\t')
-    
-    for a_link in net.not_visited:
-    	home = a_link.tail
-    	to = a_link.head
 
-		ind = df[(df['Unnamed: 1']==str(home)) & (df['Unnamed: 2']==str(to))].index.tolist()[0]
-    	df.loc[ind, 'Unnamed: 3'] = 1e-10
+    for a_link in net.not_fixed:
+        home = a_link[a_link.find("'(")+2:a_link.find(",")]
+        to = a_link[a_link.find(",")+1:]
+        to = to[:to.find(")")]
 
-    df.to_csv('new.tntp', index=False, sep="\t")
+        ind = df[(df['Unnamed: 1'] == str(home)) & (
+        df['Unnamed: 2'] == str(to))].index.tolist()[0]
+        df.loc[ind, 'Unnamed: 5'] = 1e9
 
+    df.to_csv('current_net.tntp', index=False, sep="\t")
     # send it to c code
-    args = ("../../tap_c/tap-b/bin/tap new.tntp SiouxFalls/SiouxFalls_trips.tntp", "-c")
+    args = ("../../tap_c/tap-b/bin/tap current_net.tntp SiouxFalls/SiouxFalls_trips.tntp", "-c")
     popen = subprocess.Popen(args, stdout=subprocess.PIPE, shell=True)
     popen.wait()
     output = popen.stdout.read()
-    print(output)
+    # print(output)
 
     # receive the output from c and modify the net
     tstt = net_update(net)
-    pdb.set_trace()
 
     return tstt
 

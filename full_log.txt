@@ -6,9 +6,9 @@ Forward and reverse star lists generated.
 Starting Algorithm B...
 Read matrix
 Created batch 0
-Initialization done in 0.001 s.
-Iteration 1: gap 0.051734326705040, obj 4411910.0222476, time 0.002, 48 shifts
-Iteration 2: gap 0.015734605477740, obj 4273882.50594295, time 0.003, 73 shifts
-Iteration 3: gap 0.003591024634098, obj 4237424.53002838, time 0.004, 106 shifts
-Iteration 4: gap 0.000628935597837, obj 4231956.53060478, time 0.005, 146 shifts
-Iteration 5: gap 0.000078320142753, obj 4231352.56176012, time 0.006, 206 shifts
+Initialization done in 0.000 s.
+Iteration 1: gap 0.038376891975362, obj 297520067.12901, time 0.001, 48 shifts
+Iteration 2: gap 0.002975250118606, obj 293817332.778341, time 0.002, 70 shifts
+Iteration 3: gap 0.003287769815012, obj 292706781.896962, time 0.003, 148 shifts
+Iteration 4: gap 0.000663975733236, obj 292219796.481018, time 0.004, 195 shifts
+Iteration 5: gap 0.000091848501072, obj 291752755.400984, time 0.006, 328 shifts
