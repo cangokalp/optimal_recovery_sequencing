@@ -439,6 +439,8 @@ def expand_forward(damaged_dict, wb, bb, start_node, end_node, open_list_b, open
         best_soln = min(best_soln, child.ub)
         # print(child.visited)
         # print(child.ub, child.lb)
+        if child.lb > child.ub:
+            pdb.set_trace()
 
         # Create the f, g, and h values
         child.g = child.realized
@@ -534,6 +536,9 @@ def expand_backward(damaged_dict, wb, bb, start_node, end_node, open_list_b, ope
         # set upper and lower bounds
         set_bounds_bib(child, wb, bb, open_list_f)
         best_soln = min(best_soln, child.ub)
+
+        if child.lb > child.ub:
+            pdb.set_trace()
 
         # Create the f, g, and h values
         child.g = child.realized
