@@ -65,8 +65,7 @@ class Node():
     def __eq__(self, other):
         return self.net.fixed == other.net.fixed
 
-
-def set_bounds_f(node, wb, bb, remaining):
+def set_bounds(node, wb, bb, backwards=False):
     node.ub = node.realized
     node.lb = node.realized
 
@@ -76,6 +75,8 @@ def set_bounds_f(node, wb, bb, remaining):
 
     sorted_d = sorted(node.damaged_dict.items(), key=lambda x: x[1])
 
+    remaining = set(node.damaged_dict.keys()).difference(node.visited)
+
     for key, value in sorted_d:
         # print("%s: %s" % (key, value))
         if key in remaining:
@@ -83,32 +84,100 @@ def set_bounds_f(node, wb, bb, remaining):
             orderedw_benefits.append(wb[key])
             orderedb_benefits.append(bb[key])
 
+    backward_tstt = node.before_eq_tstt
+    forward_tstt = node.after_eq_tstt
+
     bang4buck_b = np.array(orderedb_benefits) / np.array(ordered_days)
     bang4buck_w = np.array(orderedw_benefits) / np.array(ordered_days)
 
-    days_b = [x for _, x in sorted(zip(bang4buck_b, ordered_days))]
-    b = [x for _, x in sorted(zip(bang4buck_b, orderedb_benefits))]
+    days_b = [x for _, x in sorted(
+        zip(bang4buck_b, ordered_days), reverse=True)]
+    b = [x for _, x in sorted(
+        zip(bang4buck_b, orderedb_benefits), reverse=True)]
 
-    days_w = [x for _, x in sorted(zip(bang4buck_w, ordered_days))]
-    w = [x for _, x in sorted(zip(bang4buck_w, orderedw_benefits))]
+    days_w = [x for _, x in sorted(
+        zip(bang4buck_w, ordered_days), reverse=True)]
+    w = [x for _, x in sorted(
+        zip(bang4buck_w, orderedw_benefits), reverse=True)]
 
     # b
-    for i in range(len(days_b)):
-        if i == 0:
-            b_tstt = node.tstt_after
-        else:
-            b_tstt = b_tstt - b[i - 1]
+    if backwards:
+        b = b[::-1]
+        days_b = days_b[::-1]
+        w = w[::-1]
+        days_w = days_w[::-1]
 
-        node.lb += b_tstt * days_b[i]
+    for i in range(len(days_b)):
+
+        if backwards:
+            if i==0:
+                b_tstt = node.tstt_before
+
+            slack_available = forward_tstt - b_tstt
+            benefit = min(b[i], slack_available)
+            b_tstt = b_tstt + benefit
+
+            if b_tstt == forward_tstt:
+                node.lb += max((b_tstt - backward_tstt), 0) * sum(days_b[i:])
+                # node.lb += max((b_tstt - backward_tstt), 0) * days_b[i]
+                break
+            if i == len(days_b)-1:
+                node.lb += max((forward_tstt - backward_tstt), 0) * days_w[i]
+
+
+            node.lb += max((b_tstt - backward_tstt), 0) * days_b[i]
+
+        else:
+            if i == 0:
+                b_tstt = node.tstt_after
+            else:
+                slack_available = b_tstt - backward_tstt
+                benefit = min(b[i - 1], slack_available)
+                b_tstt = b_tstt - benefit
+
+            if b_tstt == backward_tstt:
+                node.lb += sum(days_b[i:]) * backward_tstt
+                # node.lb += height * sum(days_b[i:])
+                break
+
+            height = max((b_tstt - backward_tstt), 0)
+            node.lb += height * days_b[i]
 
     # w
     for i in range(len(days_w)):
-        if i == 0:
-            w_tstt = node.tstt_after
-        else:
-            w_tstt = w_tstt - w[i - 1]
+        if backwards:
+            pdb.set_trace()
+            if i == 0:
+                w_tstt = node.tstt_before
 
-        node.ub += w_tstt * days_w[i]
+            slack_available = w_tstt - backward_tstt
+            benefit = min(w[i], slack_available)
+            w_tstt = w_tstt + benefit
+
+            if w_tstt == forward_tstt:
+                # node.ub += max((w_tstt - backward_tstt), 0) * sum(days_w[i:])
+                node.ub += max((w_tstt - backward_tstt), 0) * days_w[i]
+                break
+            if i == len(days_w)-1:
+                node.ub += max((forward_tstt - backward_tstt), 0) * days_w[i]
+
+
+            node.ub += max((w_tstt - backward_tstt), 0) * days_w[i]
+
+        else:
+            if i == 0:
+                w_tstt = node.tstt_after
+            else:
+                slack_available = w_tstt - backward_tstt
+                benefit = min(w[i - 1], slack_available)
+                w_tstt = w_tstt - benefit
+                if w_tstt == backward_tstt:
+                    node.ub += backward_tstt * sum(days_w[i:])
+                    break
+                    
+            height = max((w_tstt - backward_tstt), 0)
+            node.ub += height * days_w[i]
+
 
 
 def set_bounds_b(node, wb, bb, remaining):
@@ -416,7 +485,7 @@ def expand_forward(damaged_dict, wb, bb, start_node, end_node, open_list_b, open
     for child in children:
 
         # set upper and lower bounds
-        set_bounds_bif(child, wb, bb, open_list_b)
+        set_bounds(child, wb, bb)
         if child.ub <  best_soln:
             best_soln = child.ub
             best_soln_node = child
@@ -435,7 +504,6 @@ def expand_forward(damaged_dict, wb, bb, start_node, end_node, open_list_b, open
 
         if child.f > best_soln:
             print('pruned by bound')
-            pdb.set_trace()
             continue
 
         # Child is already in the open list
@@ -520,7 +588,7 @@ def expand_backward(damaged_dict, wb, bb, start_node, end_node, open_list_b, ope
     for child in children:
 
         # set upper and lower bounds
-        set_bounds_bib(child, wb, bb, open_list_f)
+        set_bounds(child, wb, bb, backwards=True)
         if child.ub <  best_soln:
             best_soln = child.ub
             best_soln_node = child
