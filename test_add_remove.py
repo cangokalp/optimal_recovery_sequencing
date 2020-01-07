@@ -69,7 +69,7 @@ def net_update(net):
     return tstt
 
 def solve_UE_old(net=None):
-    net.userEquilibrium("FW", 1e4, 1e-3, net.averageExcessCost)
+    net.userEquilibrium_old("FW", 1e4, 1e-3, net.relativeGap)
 
 def solve_UE(net=None):
     #### net.userEquilibrium("FW", 1e4, 1e-3, net.averageExcessCost)
@@ -88,7 +88,7 @@ def solve_UE(net=None):
         ind = df[(df['Unnamed: 1'] == str(home)) & (
         df['Unnamed: 2'] == str(to))].index.tolist()[0]
         df.loc[ind, 'Unnamed: 5'] = 1e9
-
+        # print(a_link, df.loc[ind])
     df.to_csv('current_net.tntp', index=False, sep="\t")
     # send it to c code
     args = ("../../../tap_c/tap-b/bin/tap current_net.tntp SiouxFalls/SiouxFalls_trips.tntp", "-c")
