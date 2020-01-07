@@ -1,3 +1,5 @@
+import pdb
+import numpy as np
 class Link:
    """
    Class for network links.  As currently written, assumes costs are calculated as the
@@ -32,8 +34,11 @@ class Link:
       Calculates the cost of the link using the BPR relation, adding in toll and
       distance-related costs.
       This cost is returned by the method and NOT stored in the cost attribute.
-      """   
+      """  
+      if self.capacity == 0:
+         return 1e30
       vcRatio = self.flow / self.capacity
+
       # Protect against negative flows, 0^0 errors.
       if vcRatio <= 0:
          return self.freeFlowTime + self.toll * self.network.tollFactor + self.length * self.network.distanceFactor 
@@ -46,6 +51,8 @@ class Link:
       distance-related costs.
       This cost is returned by the method and NOT stored in the cost attribute.
       """   
+      if self.capacity == 0:
+         return 1e30
       vcRatio = self.flow / self.capacity
       # Protect against negative flows, 0^0 errors.
       if vcRatio <= 0:
@@ -60,6 +67,7 @@ class Link:
       contribution to the sum in the Beckmann function.
       """
       vcRatio = self.flow / self.capacity
+
       # Protect against negative flows, 0^0 errors.
       if vcRatio <= 0:
          return 0
@@ -75,11 +83,11 @@ class Link:
       self.cost = self.calculateCost()
 
    def remove(self):
-      self.freeFlowTime = 1e9
-      # self.capacity = 1e-9
+      # self.freeFlowTime = 999999999999
+      self.capacity = 1e-9
 
    def add_link_back(self):
       ij = '(' + str(self.tail) + ',' + str(self.head) + ')'
-      # self.capacity = float(self.network.original_cap[ij])
-      self.freeFlowTime = float(self.network.original_fft[ij])
+      self.capacity = float(self.network.original_cap[ij])
+      # self.freeFlowTime = float(self.network.original_fft[ij])
 
