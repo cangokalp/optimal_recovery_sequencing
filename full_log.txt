@@ -7,8 +7,8 @@ Starting Algorithm B...
 Read matrix
 Created batch 0
 Initialization done in 0.000 s.
-Iteration 1: gap 0.035009450388955, obj 11152127.2934786, time 0.001, 48 shifts
-Iteration 2: gap 0.006167559891798, obj 10639854.9605201, time 0.002, 83 shifts
-Iteration 3: gap 0.004502123380199, obj 10600581.5006752, time 0.003, 121 shifts
-Iteration 4: gap 0.000784621887368, obj 10583866.836377, time 0.004, 163 shifts
-Iteration 5: gap 0.000493141481376, obj 10568064.1615784, time 0.005, 291 shifts
+Iteration 1: gap 0.051734326705040, obj 4411910.0222476, time 0.001, 48 shifts
+Iteration 2: gap 0.015734605477740, obj 4273882.50594295, time 0.002, 73 shifts
+Iteration 3: gap 0.003591024634098, obj 4237424.53002838, time 0.003, 106 shifts
+Iteration 4: gap 0.000628935597837, obj 4231956.53060478, time 0.004, 146 shifts
+Iteration 5: gap 0.000078320142753, obj 4231352.56176012, time 0.005, 206 shifts
