@@ -35,6 +35,7 @@ class Node():
             self.days_past = self.parent.days_past + self.days
             self.before_eq_tstt = self.parent.before_eq_tstt
             self.after_eq_tstt = self.parent.after_eq_tstt
+
             self.realized = self.parent.realized + \
                 (self.tstt_before - self.before_eq_tstt) * self.days
 
@@ -223,96 +224,6 @@ def eval_sequence(net, order_list, after_eq_tstt, before_eq_tstt, if_list=None, 
     return tot_area
 
 
-def set_bounds_f(node, wb, bb, remaining):
-    node.ub = node.realized
-    node.lb = node.realized
-
-    ordered_days = []
-    orderedw_benefits = []
-    orderedb_benefits = []
-
-    sorted_d = sorted(node.damaged_dict.items(), key=lambda x: x[1])
-
-    for key, value in sorted_d:
-        # print("%s: %s" % (key, value))
-        if key in remaining:
-            ordered_days.append(value)
-            orderedw_benefits.append(wb[key])
-            orderedb_benefits.append(bb[key])
-
-    bang4buck_b = np.array(orderedb_benefits) / np.array(ordered_days)
-    bang4buck_w = np.array(orderedw_benefits) / np.array(ordered_days)
-
-    days_b = [x for _, x in sorted(zip(bang4buck_b, ordered_days))]
-    b = [x for _, x in sorted(zip(bang4buck_b, orderedb_benefits))]
-
-    days_w = [x for _, x in sorted(zip(bang4buck_w, ordered_days))]
-    w = [x for _, x in sorted(zip(bang4buck_w, orderedw_benefits))]
-
-    # b
-    for i in range(len(days_b)):
-        if i == 0:
-            b_tstt = node.tstt_after
-        else:
-            b_tstt = b_tstt - b[i - 1]
-
-        node.lb += b_tstt * days_b[i]
-
-    # w
-    for i in range(len(days_w)):
-        if i == 0:
-            w_tstt = node.tstt_after
-        else:
-            w_tstt = w_tstt - w[i - 1]
-
-        node.ub += w_tstt * days_w[i]
-
-
-def set_bounds_b(node, wb, bb, remaining):
-    node.ub = node.realized
-    node.lb = node.realized
-
-    ordered_days = []
-    orderedw_benefits = []
-    orderedb_benefits = []
-
-    sorted_d = sorted(node.damaged_dict.items(), key=lambda x: x[1])
-
-    for key, value in sorted_d:
-        # print("%s: %s" % (key, value))
-        if key in remaining:
-            ordered_days.append(value)
-            orderedw_benefits.append(wb[key])
-            orderedb_benefits.append(bb[key])
-
-    bang4buck_b = np.array(orderedb_benefits) / np.array(ordered_days)
-    bang4buck_w = np.array(orderedw_benefits) / np.array(ordered_days)
-
-    days_b = [x for _, x in sorted(zip(bang4buck_b, ordered_days))]
-    b = [x for _, x in sorted(zip(bang4buck_b, orderedb_benefits))]
-
-    days_w = [x for _, x in sorted(zip(bang4buck_w, ordered_days))]
-    w = [x for _, x in sorted(zip(bang4buck_w, orderedw_benefits))]
-
-    # b
-    for i in range(len(days_b)):
-        if i == 0:
-            b_tstt = node.tstt_before
-        else:
-            b_tstt = b_tstt - b[i - 1]
-
-        node.lb += b_tstt * days_b[i]
-
-    # w
-    for i in range(len(days_w)):
-        if i == 0:
-            w_tstt = node.tstt_before
-        else:
-            w_tstt = w_tstt - w[i - 1]
-
-        node.ub += w_tstt * days_w[i]
-
-
 def get_successors_f(node, wb, bb):
     """given a state, returns list of bridges that has not been fixed yet"""
     not_visited = node.not_visited
@@ -369,60 +280,215 @@ def expand_sequence_b(node, a_link, level, damaged_dict):
     removed = [a_link]
     net.not_fixed = net.not_fixed.union(set(removed))
     tstt_before = solve_UE(net=net)
-
     node = Node(link_id=a_link, parent=node, net=net, tstt_after=tstt_after,
                 tstt_before=tstt_before, level=level, damaged_dict=damaged_dict)
     return node
 
+def orderlists(benefits, days, slack, reverse=True):
 
-def get_minlb(node, calc_node, orderedb_benefits, orderedw_benefits, ordered_days, minlb, corr_ub, forward_tstt, backward_tstt, backwards=False):
+    if sum(benefits) > slack:
+        benefits = np.array(benefits)
+        benefits = [min(slack, x) for x in benefits]
+    
+    bang4buck = np.array(benefits) / np.array(days)
 
-    bang4buck_b = np.array(orderedb_benefits) / np.array(ordered_days)
-    bang4buck_w = np.array(orderedw_benefits) / np.array(ordered_days)
+    days = [x for _, x in sorted(
+        zip(bang4buck, days), reverse=reverse)]
+    benefits = [x for _, x in sorted(
+        zip(bang4buck, benefits), reverse=reverse)]
 
-    days_b = [x for _, x in sorted(
-        zip(bang4buck_b, ordered_days), reverse=True)]
-    b = [x for _, x in sorted(
-        zip(bang4buck_b, orderedb_benefits), reverse=True)]
+    return benefits, days
 
-    days_w = [x for _, x in sorted(
-        zip(bang4buck_w, ordered_days), reverse=True)]
-    w = [x for _, x in sorted(
-        zip(bang4buck_w, orderedw_benefits), reverse=True)]
 
-    debug=False
-    if node.visited == set(['(18,20)', '(10,15)']):
-        debug=True
-   
-    for i in range(len(days_b)):
+def get_minlb(node, fwd_node, bwd_node, orderedb_benefits, orderedw_benefits, ordered_days, forward_tstt, backward_tstt, backwards=False):
 
-        if i == 0:
-            b_tstt = calc_node.tstt_after
-        else:
-            slack_available = b_tstt - backward_tstt
-            benefit = min(b[i - 1], slack_available)
-            b_tstt = b_tstt - benefit
+    slack = forward_tstt - backward_tstt
+    
+    if len(ordered_days) == 0:
+        node.lb = node.ub = fwd_node.realized + bwd_node.realized
+        return
+    
+    elif len(ordered_days) == 1:
+        node.lb = node.ub = fwd_node.realized + bwd_node.realized + (fwd_node.tstt_after - node.before_eq_tstt)*ordered_days[0]
+        return
+    
+    b, days_b = orderlists(orderedb_benefits, ordered_days, slack)
+    w, days_w = orderlists(orderedw_benefits, ordered_days, slack)
 
-        if b_tstt == backward_tstt:
-            node.lb += sum(days_b[i:]) * (backward_tstt - node.before_eq_tstt)
-            break
-        node.lb += max((b_tstt - node.before_eq_tstt), 0) * days_b[i]
+    uborig = node.ub
+    backward_lb = node.lb
+    backward_ub = node.ub
 
-    for i in range(len(days_w)):
 
-        if i == 0:
-            w_tstt = calc_node.tstt_after
-        else:
-            slack_available = w_tstt - backward_tstt
-            benefit = min(w[i - 1], slack_available)
-            w_tstt = w_tstt - benefit
-        if w_tstt == backward_tstt:
-            node.ub += sum(days_w[i:]) * (backward_tstt - node.before_eq_tstt)
-            break
-        node.ub += max((w_tstt - node.before_eq_tstt), 0) * days_w[i]
 
-    return minlb
 
+    ###### FIND LB FROM BACKWARDS #####
+    if sum(w) < slack:
+        for i in range(len(days_b)):
+            if i == 0:
+                bwd_w = deepcopy(w)
+                bwd_days_w = deepcopy(days_w)
+                b_tstt = bwd_node.tstt_before
+                ordered = sorted(bwd_days_w)[::-1]
+            else:
+                bwd_w = bwd_w[1:]
+                bwd_days_w = bwd_days_w[1:]
+                ordered = ordered[1:]
+                bwd_w, bwd_days_w = orderlists(bwd_w, bwd_days_w, slack_available, reverse=False)
+            
+            slack_available = forward_tstt - b_tstt
+
+            benefit = min(bwd_w[0], slack_available)     
+            b_tstt = b_tstt + benefit
+
+            if b_tstt == forward_tstt:
+                # backward_lb += sum(ordered[:]) * (forward_tstt - node.before_eq_tstt)
+                backward_lb += sum(bwd_w[:]) * (forward_tstt - node.before_eq_tstt)
+                break
+
+            # backward_lb += max((b_tstt - node.before_eq_tstt),0) * ordered[0]
+            backward_lb += max((b_tstt - node.before_eq_tstt),0) * bwd_days_w[0]
+    else:
+        bwd_days_w = deepcopy(days_w)
+        maxi = max(bwd_days_w)
+        bwd_days_w.remove(maxi)
+
+        mini = min(bwd_days_w)
+        bwd_days_w.remove(mini)
+
+        top = mini*(forward_tstt - node.before_eq_tstt)
+        bottom = maxi*(bwd_node.tstt_before + w[-1] - node.before_eq_tstt)
+        backward_lb += bottom + sum(bwd_days_w)*(bwd_node.tstt_before + w[-1] - node.before_eq_tstt) + top
+
+
+
+
+
+
+
+
+
+
+
+    ###### FIND LB FROM FORWARDS #####
+    if sum(b) > slack:
+        for i in range(len(days_b)):
+
+            if i == 0:
+                fwd_b = deepcopy(b)
+                fwd_days_b = deepcopy(days_b)
+                b_tstt = fwd_node.tstt_after
+
+            else:
+                slack_available = b_tstt - backward_tstt
+                benefit = min(fwd_b[0], slack_available)
+                b_tstt = b_tstt - benefit
+                fwd_b = fwd_b[1:]
+                fwd_days_b = fwd_days_b[1:]
+                fwd_b, fwd_days_b = orderlists(fwd_b, fwd_days_b, slack_available)
+
+            if b_tstt == backward_tstt:
+                node.lb += sum(fwd_days_b[:]) * (backward_tstt - node.before_eq_tstt)
+                break
+
+            node.lb += max((b_tstt - node.before_eq_tstt), 0) * fwd_days_b[0]
+    else:
+        fwd_days_b = deepcopy(days_b)
+        mini = min(fwd_days_b)
+        fwd_days_b.remove(mini)
+        node.lb += min(days_b)*(fwd_node.tstt_after - node.before_eq_tstt) + sum(fwd_days_b)*(backward_tstt - node.before_eq_tstt)
+
+
+
+
+
+
+
+
+
+    ###### FIND UB FROM FORWARDS #####
+    if sum(w) < slack:
+        for i in range(len(days_w)):
+
+            if i == 0:
+                fwd_w = deepcopy(w)
+                fwd_days_w = deepcopy(days_w)
+                w_tstt = fwd_node.tstt_after
+                node.ub += max((w_tstt - node.before_eq_tstt), 0) * max(days_w)
+
+            else:
+                slack_available = w_tstt - backward_tstt
+                benefit = min(fwd_w[0], slack_available)
+                w_tstt_prev = w_tstt
+                w_tstt = w_tstt - benefit
+                fwd_w = fwd_w[1:]
+                fwd_days_w = fwd_days_w[1:]
+                fwd_w, fwd_days_w = orderlists(fwd_w, fwd_days_w, slack_available)
+
+
+            if w_tstt == backward_tstt:
+                node.ub += sum(fwd_days_w[:]) * (backward_tstt - node.before_eq_tstt)
+                break
+
+            node.ub += max((w_tstt - node.before_eq_tstt), 0) * fwd_days_w[0]
+    else:
+        fwd_days_w = deepcopy(days_w)
+        maxi = max(fwd_days_w)
+        fwd_days_w.remove(maxi)
+        node.ub += max(days_w)*(fwd_node.tstt_after - node.before_eq_tstt) + sum(fwd_days_w)*(forward_tstt - node.before_eq_tstt)
+
+
+
+
+
+
+
+    ###### FIND UB FROM BACKWARDS #####
+    if sum(b) > slack:
+        for i in range(len(days_b)):
+            if i == 0:
+                bwd_b = deepcopy(b)
+                bwd_days_b = deepcopy(days_b)
+                w_tstt = bwd_node.tstt_before
+            else:
+                bwd_b = bwd_b[1:]
+                bwd_days_b = bwd_days_b[1:]
+                bwd_b, bwd_days_b = orderlists(bwd_b, bwd_days_b, slack_available)
+
+            slack_available = forward_tstt - w_tstt
+            benefit = min(bwd_b[0], slack_available)
+            w_tstt = w_tstt + benefit
+
+            if i == len(days_b) - 1:
+                backward_ub += bwd_days_b[-1] * (forward_tstt - node.before_eq_tstt)
+                break
+
+            if w_tstt == forward_tstt:
+                backward_ub += sum(bwd_days_b[:]) * (forward_tstt - node.before_eq_tstt)
+                break
+
+            backward_ub += max((w_tstt - node.before_eq_tstt),0) * bwd_days_b[0]
+    else:
+        bwd_days_b = deepcopy(days_b)
+        mini = min(bwd_days_b)
+        bwd_days_b.remove(mini)
+        backward_ub += min(days_b)*(bwd_node.tstt_before + b[0] - node.before_eq_tstt) + sum(bwd_days_b)*(forward_tstt - node.before_eq_tstt)
+
+
+
+
+
+
+
+
+    if backward_ub < node.ub:
+        node.ub = backward_ub
+
+    if backward_lb > node.lb:
+        node.lb = backward_lb
+
+    if node.lb > node.ub:
+        pdb.set_trace()
 
 def set_bounds_bif(node, wb, bb, open_list_b, end_node, front_to_end=True, debug=False):
 
@@ -439,12 +505,13 @@ def set_bounds_bif(node, wb, bb, open_list_b, end_node, front_to_end=True, debug
                 eligible_backward_connects.append(other_end)
 
     minlb = np.inf
-    corr_ub = np.inf
-    
-    # print('forward_bounds')
-    # pdb.set_trace()
+    maxub = -np.inf
+
     if debug:
         pdb.set_trace()
+    if len(eligible_backward_connects) == 0:
+        eligible_backward_connects = [end_node]
+
     for other_end in eligible_backward_connects:
         ordered_days = []
         orderedw_benefits = []
@@ -464,16 +531,16 @@ def set_bounds_bif(node, wb, bb, open_list_b, end_node, front_to_end=True, debug
                 orderedb_benefits.append(bb[key])
         forward_tstt = node.tstt_after
         backward_tstt = other_end.tstt_before
-
-        minlb = get_minlb(
-            node, node, orderedb_benefits, orderedw_benefits, ordered_days, minlb, corr_ub, forward_tstt, backward_tstt)
+        get_minlb(node, node, other_end, orderedb_benefits,
+                  orderedw_benefits, ordered_days, forward_tstt, backward_tstt)
 
         if node.lb < minlb:
             minlb = node.lb
-            corr_ub = node.ub
+        if node.ub > maxub:
+            maxub = node.ub
 
     node.lb = minlb
-    node.ub = corr_ub
+    node.ub = maxub
 
 
 def set_bounds_bib(node, wb, bb, open_list_f, start_node, front_to_end=True):
@@ -491,11 +558,10 @@ def set_bounds_bib(node, wb, bb, open_list_f, start_node, front_to_end=True):
                 eligible_backward_connects.append(other_end)
 
     minlb = np.inf
-    corr_ub = np.inf
+    maxub = -np.inf
+    if len(eligible_backward_connects) == 0:
+        eligible_backward_connects = [start_node]
 
-    # print('backward_bounds')
-    # pdb.set_trace()
-    
     for other_end in eligible_backward_connects:
         ordered_days = []
         orderedw_benefits = []
@@ -516,22 +582,20 @@ def set_bounds_bib(node, wb, bb, open_list_f, start_node, front_to_end=True):
         forward_tstt = other_end.tstt_after
         backward_tstt = node.tstt_before
 
-        minlb = get_minlb(
-            node, other_end, orderedb_benefits, orderedw_benefits, ordered_days, minlb, corr_ub, forward_tstt, backward_tstt, backwards=True)
+        get_minlb(node, other_end, node, orderedb_benefits, orderedw_benefits,
+                  ordered_days, forward_tstt, backward_tstt, backwards=True)
 
         if node.lb < minlb:
             minlb = node.lb
-            corr_ub = node.ub
+        if node.ub > maxub:
+            maxub = node.ub
 
     node.lb = minlb
-    node.ub = corr_ub
+    node.ub = maxub
 
 
-def expand_forward(damaged_dict, wb, bb, start_node, end_node, open_list_b, open_list_f, closed_list_b, closed_list_f,  best_soln, best_soln_node, best_path, num_tap_solved):
-    # Loop until you find the end
+def expand_forward(damaged_dict, wb, bb, start_node, end_node, open_list_b, open_list_f, closed_list_b, closed_list_f,  best_soln, best_soln_node, best_path, num_tap_solved, front_to_end):
     debug = False
-    print('forward search is in progress...')
-
     # Get the current node
     current_node = open_list_f[0]
     current_index = 0
@@ -544,23 +608,37 @@ def expand_forward(damaged_dict, wb, bb, start_node, end_node, open_list_b, open
     open_list_f.pop(current_index)
     closed_list_f.append(current_node)
 
-    if current_node.level > 3:
+    if current_node.level >= 2:
         cur_visited = current_node.visited
         for other_end in open_list_b + closed_list_b:
-            if set(other_end.not_visited) == set(cur_visited):
-                print('we have a solution')
-                cur_soln = current_node.g + other_end.g
-                if cur_soln < best_soln:
+            if len(set(other_end.visited).intersection(set(cur_visited))) == 0 and len(damaged_dict) - len(set(other_end.visited).union(set(cur_visited))) == 1:
+                lo_link = set(damaged_dict.keys()).difference(set(other_end.visited).union(set(cur_visited)))
+                lo_link = lo_link.pop()
+                cur_soln = current_node.g + other_end.g + current_node.tstt_after*damaged_dict[lo_link]
+                cur_path = current_node.path + [str(lo_link)] + other_end.path[::-1]
+                if cur_soln <= best_soln:
                     best_soln = cur_soln
-                    best_path = current_node.path + other_end.path[::-1]
+                    best_path = cur_path 
+                    print('-------BEST_SOLN-----: ', best_soln)
+                    print(best_path)
+
+
+            if set(other_end.not_visited) == set(cur_visited):
+                cur_soln = current_node.g + other_end.g
+                cur_path = current_node.path + other_end.path[::-1]
+                if cur_soln <= best_soln:
+                    best_soln = cur_soln
+                    best_path = cur_path
+                    print('-------BEST_SOLN-----: ', best_soln)
+                    print(best_path)
 
     # Found the goal
     if current_node == end_node:
-        print('at the end_node')
+        # print('at the end_node')
         return open_list_f, closed_list_f, best_soln, best_soln_node, best_path, num_tap_solved
-        #current_node.path, 
+
     if current_node.f > best_soln:
-        print('current node is pruned')
+        # print('current node is pruned')
         return open_list_f, closed_list_f, best_soln, best_soln_node, best_path, num_tap_solved
 
     # Generate children
@@ -576,22 +654,20 @@ def expand_forward(damaged_dict, wb, bb, start_node, end_node, open_list_b, open
         # Append
         children.append(new_node)
 
-    # print('open_list_f length: ', len(open_list_f))
-
     # Loop through children
     for child in children:
 
         # set upper and lower bounds
-        set_bounds_bif(child, wb, bb, open_list_b, end_node=end_node, debug=debug)
+        set_bounds_bif(child, wb, bb, open_list_b,
+                       front_to_end=front_to_end, end_node=end_node, debug=debug)
+
         if child.ub <= best_soln:
+
             best_soln = child.ub
             best_soln_node = child
             if len(child.path) == len(child.damaged_dict):
                 best_path = child.path
 
-        # best_soln = min(best_soln, child.ub)
-        # print(child.visited)
-        # print(child.ub, child.lb)
         if child.lb > child.ub:
             pdb.set_trace()
 
@@ -602,7 +678,6 @@ def expand_forward(damaged_dict, wb, bb, start_node, end_node, open_list_b, open
         child.f = child.lb
 
         if child.f > best_soln:
-            # print('pruned by bound')
             continue
 
         # Child is already in the open list
@@ -628,12 +703,9 @@ def expand_forward(damaged_dict, wb, bb, start_node, end_node, open_list_b, open
     return open_list_f, closed_list_f, best_soln, best_soln_node, best_path, num_tap_solved
 
 
-def expand_backward(damaged_dict, wb, bb, start_node, end_node, open_list_b, open_list_f, closed_list_b, closed_list_f, best_soln, best_soln_node, best_path):
+def expand_backward(damaged_dict, wb, bb, start_node, end_node, open_list_b, open_list_f, closed_list_b, closed_list_f, best_soln, best_soln_node, best_path, num_tap_solved, front_to_end):
 
     # Loop until you find the end
-    print('backwards search is in progress...')
-
-    # Get the current node
     current_node = open_list_b[0]
     current_index = 0
     for index, item in enumerate(open_list_b):
@@ -645,23 +717,37 @@ def expand_backward(damaged_dict, wb, bb, start_node, end_node, open_list_b, ope
     open_list_b.pop(current_index)
     closed_list_b.append(current_node)
 
-    if abs(len(current_node.damaged_dict) - current_node.level) > 3:
+    if len(current_node.visited) >= 2:
         cur_visited = current_node.visited
         for other_end in open_list_f + closed_list_f:
-            if set(other_end.not_visited) == set(cur_visited):
-                print('we have a solution')
+            if len(set(other_end.visited).intersection(set(cur_visited))) == 0 and len(damaged_dict) - len(set(other_end.visited).union(set(cur_visited))) == 1:
+                lo_link = set(damaged_dict.keys()).difference(set(other_end.visited).union(set(cur_visited)))
+                lo_link = lo_link.pop()
+                cur_soln = current_node.g + other_end.g + other_end.tstt_after*damaged_dict[lo_link]
+                if cur_soln <= best_soln:
+                    best_soln = cur_soln
+                    best_path = other_end.path + [str(lo_link)] + current_node.path[::-1]
+                    print('-------BEST_SOLN-----: ', best_soln)
+                    print(best_path)
+
+
+            elif set(other_end.not_visited) == set(cur_visited):
                 cur_soln = current_node.g + other_end.g
-                if cur_soln < best_soln:
+                # print('current_soln: {}, best_soln: {}'.format(cur_soln, best_soln))
+                if cur_soln <= best_soln:
                     best_soln = cur_soln
                     best_path = other_end.path + current_node.path[::-1]
+                    print('-------BEST_SOLN-----: ', best_soln)
+                    print(best_path)
+
 
     # Found the goal
     if current_node == start_node:
-        print('at the start node')
+        # print('at the start node')
         return open_list_b, closed_list_b, best_soln, best_soln_node, best_path, num_tap_solved
 
     if current_node.f > best_soln:
-        print('current node is pruned')
+        # print('current node is pruned')
         return open_list_b, closed_list_b, best_soln, best_soln_node, best_path, num_tap_solved
 
     # Generate children
@@ -678,15 +764,19 @@ def expand_backward(damaged_dict, wb, bb, start_node, end_node, open_list_b, ope
         # Append
         children.append(new_node)
 
-    print('open_list_b length: ', len(open_list_b))
     # Loop through children
+
     for child in children:
 
         # set upper and lower bounds
-        set_bounds_bib(child, wb, bb, open_list_f, start_node=start_node)
+
+        set_bounds_bib(child, wb, bb, open_list_f,
+                       front_to_end=front_to_end, start_node=start_node)
         if child.ub <= best_soln:
             best_soln = child.ub
             best_soln_node = child
+            if len(child.path) == len(child.damaged_dict):
+                best_path = child.path[::-1]
 
         if child.lb > child.ub:
             pdb.set_trace()
@@ -698,7 +788,6 @@ def expand_backward(damaged_dict, wb, bb, start_node, end_node, open_list_b, ope
         child.f = child.lb
 
         if child.f > best_soln:
-            print('pruned by bound')
             continue
 
         # Child is already in the open list
@@ -726,12 +815,8 @@ def expand_backward(damaged_dict, wb, bb, start_node, end_node, open_list_b, ope
 
 def search(damaged_dict, wb, bb, start_node, end_node, best_bound, num_tap_solved):
     """Returns the best order to visit the set of nodes"""
-
-    # FIXES:
-    # either backward searches bounding set_bounds_bib is doing something wrong
-    # there is a chance the pruning by bound logic is wrong
-    print_statements = False
-
+    a_star = False
+    iter_count = 0
     kb, kf = 0, 0
     best_soln = best_bound  # solution comes from the greedy heuristic
     best_path = None
@@ -743,47 +828,46 @@ def search(damaged_dict, wb, bb, start_node, end_node, best_bound, num_tap_solve
     # Initialize both open and closed list for forward and backward directions
     open_list_f = []
     closed_list_f = []
-    # Add the start node
     open_list_f.append(start_node)
 
     open_list_b = []
     closed_list_b = []
-    # open_list_b.append(end_node)
-
-    search_direction = 'Forward'
-
-    while len(open_list_f) > 0 or len(open_list_b) > 0:
+    open_list_b.append(end_node)
+    # a_star = True
+    while len(open_list_f) > 0 and len(open_list_b) > 0:
+        iter_count += 1
         search_direction = 'Forward'
-        open_list_f, closed_list_f, best_soln, best_soln_node, best_path, num_tap_solved = expand_forward(
-                damaged_dict, wb, bb, start_node, end_node, open_list_b, open_list_f, closed_list_b, closed_list_f, best_soln, best_soln_node, best_path, num_tap_solved)
 
-        # if len(open_list_f) <= len(open_list_b) and len(open_list_f) != 0:
-        #     # ideas in Holte: (search that meets in the middle)
-        #     # another idea is to expand the min priority, considering both backward and forward open list
-        #     # pr(n) = max(f(n), 2g(n)) - min priority expands
-        #     # U is best solution found so far - stops when - U ≤max(C,fminF,fminB,gminF +gminB +ε)
-        #     # this is for front to end
-        #     search_direction = 'Forward'
-        # else:
-        #     if len(open_list_b) != 0:
-        #         search_direction = 'Backward'
+        if a_star:
+            open_list_f, closed_list_f, best_soln, best_soln_node, best_path, num_tap_solved = expand_forward(
+                damaged_dict, wb, bb, start_node, end_node, open_list_b, open_list_f, closed_list_b, closed_list_f, best_soln, best_soln_node, best_path, num_tap_solved, front_to_end=True)
+            # open_list_b, closed_list_b, best_soln, best_soln_node, best_path, num_tap_solved = expand_backward(
+            # damaged_dict, wb, bb, start_node, end_node, open_list_b,
+            # open_list_f, closed_list_b, closed_list_f, best_soln,
+            # best_soln_node, best_path, num_tap_solved, front_to_end=True)
 
-        # if search_direction == 'Forward':
-        #     pdb.set_trace()
-        #     path, open_list_f, closed_list_f, best_soln, best_soln_node, best_path, num_tap_solved = expand_forward(
-        #         damaged_dict, wb, bb, start_node, end_node, open_list_b, open_list_f, closed_list_b, closed_list_f, best_soln, best_soln_node, best_path, num_tap_solved)
-        # else:
-        #     pdb.set_trace()
-        #     path, open_list_b, closed_list_b, best_soln, best_soln_node, best_path, num_tap_solved = expand_backward(
-        #         damaged_dict, wb, bb, start_node, end_node, open_list_b, open_list_f, closed_list_b, closed_list_f, best_soln, best_soln_node, best_path, num_tap_solved)
-        if len(open_list_f) > 110:
-            print_statements = True
+        else:
+            if len(open_list_f) <= len(open_list_b) and len(open_list_f) != 0:
+                # ideas in Holte: (search that meets in the middle)
+                # another idea is to expand the min priority, considering both backward and forward open list
+                # pr(n) = max(f(n), 2g(n)) - min priority expands
+                # U is best solution found so far - stops when - U ≤max(C,fminF,fminB,gminF +gminB +ε)
+                # this is for front to end
+                search_direction = 'Forward'
+            else:
+                if len(open_list_b) != 0:
+                    search_direction = 'Backward'
 
-        if print_statements:
-            print(best_soln_node.path)
+            if search_direction == 'Forward':
+                open_list_f, closed_list_f, best_soln, best_soln_node, best_path, num_tap_solved = expand_forward(
+                    damaged_dict, wb, bb, start_node, end_node, open_list_b, open_list_f, closed_list_b, closed_list_f, best_soln, best_soln_node, best_path, num_tap_solved, front_to_end=False)
+            else:
+                open_list_b, closed_list_b, best_soln, best_soln_node, best_path, num_tap_solved = expand_backward(
+                    damaged_dict, wb, bb, start_node, end_node, open_list_b, open_list_f, closed_list_b, closed_list_f, best_soln, best_soln_node, best_path, num_tap_solved, front_to_end=False)
 
-        # print('length of forward open list: ', len(open_list_f))
-        # print('length of backwards open list: ', len(open_list_b))
+        if iter_count % 20 == 0:
+            print('length of forward open list: ', len(open_list_f))
+            print('length of backwards open list: ', len(open_list_b))
 
         # check termination
         if len(open_list_b) > 0:
@@ -800,15 +884,20 @@ def search(damaged_dict, wb, bb, start_node, end_node, best_bound, num_tap_solve
                     current_node = item
                     kf = current_node.f
 
-        if max(kf, kb) > best_bound:
-            pdb.set_trace()
-            return best_bound, best_path, num_tap_solved
+        if min(kf, kb) > best_soln:
+            print('search ended')
+            print('search_dir: ', search_direction)
+            return best_path, best_soln, num_tap_solved
 
-        # if path is not None:
-        #     return path
+    return best_path, best_soln, num_tap_solved
 
-    return best_path, num_tap_solved
-
+def safety(wb, bb):
+    for a_link in wb:
+        if bb[a_link] < wb[a_link]:
+            worst = bb[a_link]
+            bb[a_link] = wb[a_link]
+            wb[a_link] = worst
+    return wb, bb
 
 def main():
     print('bi-directional')
@@ -823,6 +912,7 @@ def main():
     wb = worst_benefit(net_before, damaged_links, before_eq_tstt)
     bb = best_benefit(net_after, damaged_links, after_eq_tstt)
 
+    wb, bb = safety(wb,bb)
     # Create start and end node
     start_node = Node(tstt_after=after_eq_tstt,
                       net=net_after, damaged_dict=damaged_dict)
@@ -878,9 +968,8 @@ def main():
 
     best_benefit_taps = num_damaged
     worst_benefit_taps = num_damaged
-    feasible_soln_taps = num_damaged*(num_damaged+1)/2.0
+    feasible_soln_taps = num_damaged * (num_damaged + 1) / 2.0
     num_tap_solved = best_benefit_taps + worst_benefit_taps + feasible_soln_taps
-
 
     # if not os.path.exists('saved_dictionaries/' + 'tap_counter' + SNAME + '.pickle'):
     #     save(TAP_COUNTER, 'tap_counter' + SNAME)
@@ -919,11 +1008,20 @@ def main():
     #     save(min_seq, 'min_seq' + SNAME)
     # else:
     #     min_seq = load('min_seq' + SNAME)
-    path, num_tap_solved = search(damaged_dict, wb, bb, start_node, end_node, best_bound, num_tap_solved)
+
+    path, cost, num_tap_solved = search(
+        damaged_dict, wb, bb, start_node, end_node, best_bound, num_tap_solved)
+
     end = time.time()
     elapsed = end - start
-    print('Sequence found: {}, number of TAPs solved: {} time elapsed: {}'.format(path, num_tap_solved, elapsed)) 
-    pdb.set_trace()
+
+    print('Sequence found: {}, cost: {}, number of TAPs solved: {}, time elapsed: {}'.format(
+        path, cost, num_tap_solved, elapsed))
+
+    net_after.damaged_dict = damaged_dict
+    cost_check = eval_sequence(
+        deepcopy(net_after), path, after_eq_tstt, before_eq_tstt)
+    print('cost_check: ', cost_check)
 
 if __name__ == '__main__':
     main()
