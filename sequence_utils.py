@@ -4,7 +4,9 @@ import cProfile
 import pstats
 import pandas as pd
 import pickle
-# import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('TkAgg')
+import matplotlib.pyplot as plt
 import networkx as nx
 from copy import deepcopy
 # from tabulate import tabulate
@@ -14,18 +16,19 @@ import subprocess
 import shutil
 import time
 
+def save(fname, data, extension='pickle'):
+    path = fname + "." + extension
+
+    with open(path, 'wb') as f:
+        pickle.dump(data, f)
 
 
-def save(dict_to_save, fname):
-    fname = 'saved_dictionaries/' + fname + '.pickle'
-    with open(fname, 'wb') as f:
-        pickle.dump(dict_to_save, f)
+def load(fname, extension='pickle'):
+    path = fname + "." + extension
 
-
-def load(fname):
-    fname = 'saved_dictionaries/' + fname + '.pickle'
-    with open(fname, 'rb') as f:
+    with open(path, 'rb') as f:
         item = pickle.load(f)
+
     return item
 
 
@@ -69,8 +72,6 @@ def net_update(net):
 
     return tstt
 
-def solve_UE_old(net=None):
-    net.userEquilibrium_old("FW", 1e4, 1e-3, net.relativeGap)
 
 def solve_UE(net=None):
     #### net.userEquilibrium("FW", 1e4, 1e-3, net.averageExcessCost)
@@ -104,11 +105,7 @@ def solve_UE(net=None):
     return tstt
 
 
-def find_tstt(net=None):
-    tx = 0
-    for ij in net.link:
-        tx += net.link[ij].cost * net.link[ij].flow
-    return tx
+
 
 
 def fix_one(net1, fixed_state, to_fix, tstt_state, days_state):
@@ -198,14 +195,26 @@ def find_max_relief(links_eligible_addback, fixed=[], cur_tstt=None):
     return links_eligible_addback[ind], tstt_list[ind], days_list[ind]
 
 
-def graph_current(updated_net, fixed_state, tstt_state, days_state, before_eq_tstt, after_eq_tstt, N):
+def save_fig(plt_path, algo, tight_layout=True, fig_extension="png", resolution=300):
+    path = os.path.join(plt_path, algo + "." + fig_extension)
+    print("Saving figure", algo)
+
+    if tight_layout:
+        plt.tight_layout()
+    plt.savefig(path, format=fig_extension, dpi=resolution)
+
+
+
+def graph_current(tstt_state, days_state, before_eq_tstt, after_eq_tstt, path, plt_path, algo):
+
+    N = sum(days_state)
 
     cur_tstt = after_eq_tstt
 
-    order_list = fixed_state
     tstt_g = []
     tot_area = 0
     days = 0
+
     for i in range(len(days_state)):
         days += days_state[i]
         if i == 0:
@@ -215,38 +224,83 @@ def graph_current(updated_net, fixed_state, tstt_state, days_state, before_eq_ts
             tot_area += days_state[i] * (tstt_state[i - 1] - before_eq_tstt)
             tstt_g.append(tstt_state[i - 1])
 
-    if days != N:
-        tot_area += N - days * (tstt_state[-1] - before_eq_tstt)
-        tstt_g.append(tstt_state[-1])
-        days_state = days_state + [N - days]
+    
+    tstt_g.append(before_eq_tstt)
+    y = tstt_g
+    x = np.zeros(len(y))
 
-    x = [0] + days_state
-    y = [after_eq_tstt] + tstt_g + [tstt_g[-1]]
+    for j in range(len(y)):
+        x[j] = sum(days_state[:j])
 
-    for j in range(len(days_state)):
-        x[j] = days_state[j]
-        if j != 0:
-            x[j] = sum(days_state[:j])
 
-    x[0] = 0
-    x[j + 1] = sum(days_state[:j + 1])
-    x.append(x[-1])
-
-    # x = days_list
-    # plt.subplot(211)
-    plt.figure()
-    plt.fill_between(x, y, before_eq_tstt, step="pre",
-                     color='green', alpha=0.4)
-    plt.step(x, y, label='tstt')
-    plt.xlabel('Days')
+    plt.figure(figsize=(16,8))
+    plt.fill_between(x, y, before_eq_tstt, step="post",
+                     color='green', alpha=0.2)
+    # plt.step(x, y, label='tstt', where="post")
+    plt.xlabel('DAYS')
     plt.ylabel('TSTT')
 
-    tt = 'Total Area: ' + str(tot_area)
-    xy = (0.2, 0.2)
-    plt.annotate(tt, xy, xycoords='figure fraction')
+    plt.ylim(before_eq_tstt, after_eq_tstt + 1000)
+
+    for i in range(len(tstt_state)):
+
+        print(y[i], y[i+1])
+        start = sum(days_state[:i])
+        # bbox_props = dict(boxstyle="rarrow,pad=0.3", fc="w", ec="b", alpha=0.8, lw=1)
+        # t = plt.text(start + days_state[i]/2, y[i] + 5, round(days_state[i],2), ha="center", va="center",
+            # size=10,
+            # bbox=bbox_props)
+        # bb = t.get_bbox_patch()
+        # bb.set_boxstyle("darrow", pad=0.3)
+        
+        plt.annotate("link: " + path[i], (start + days_state[i]/2, y[i]), textcoords='offset points', xytext=(0,15), ha='center') 
+        plt.annotate("repair time: " + str(round(days_state[i],2)), (start + days_state[i]/2, y[i]), textcoords='offset points', xytext=(0,5), ha='center') #, arrowprops=dict(width= days_state[i])) 
+        # plt.annotate("", xy=(start + days_state[i], y[i]), xytext=(start, y[i]) , textcoords='offset points', ha='center', arrowprops=dict(arrowstyle='<->', connectionstyle="arc3"))
+        # plt.arrow(0.85, 0.5, dx = -0.70, dy = 0, head_width=0.05, head_length=0.03, linewidth=4, color='g', length_includes_head=True)
+        plt.annotate(s='', xy=(start + days_state[i], y[i]), xytext=(start, y[i]), arrowprops=dict(arrowstyle='<->', color='blue'))
+
+        plt.annotate(s='', xy=(start + days_state[i], y[i]), xytext=(start + days_state[i], y[i+1]), arrowprops=dict(arrowstyle='<->', color='indigo'))
+
+        plt.annotate("reduction: " + str(round(y[i] - y[i+1], 2)), xy=(start + days_state[i], (y[i] - y[i+1])/2), xytext=(10,10), textcoords='offset points', ha='left') #, arrowprops=dict(width= days_state[i])) 
+
+        #animation example:
+        # import numpy as np
+        # import matplotlib.pyplot as plt
+        # import matplotlib.animation as animation
+
+        # fig, ax = plt.subplots()
+        # ax.axis([-2,2,-2,2])
+
+        # arrowprops=dict(arrowstyle='<-', color='blue', linewidth=10, mutation_scale=150)
+        # an = ax.annotate('Blah', xy=(1, 1), xytext=(-1.5, -1.5), xycoords='data', 
+        #                  textcoords='data', arrowprops=arrowprops)
+
+        # colors=["crimson", "limegreen", "gold", "indigo"]
+        # def update(i):
+        #     c = colors[i%len(colors)]
+        #     an.arrow_patch.set_color(c)
+
+        # ani = animation.FuncAnimation(fig, update, 10, interval=1000, repeat=True)
+        # plt.show()
+
+
+        # plt.text(0, 0.1, r'$\delta$',
+        #  {'color': 'black', 'fontsize': 24, 'ha': 'center', 'va': 'center',
+        #   'bbox': dict(boxstyle="round", fc="white", ec="black", pad=0.2)})
+        # xticks(np.arange(5), ('Tom', 'Dick', 'Harry', 'Sally', 'Sue'))
+        
+        # using tex in labels
+        # Use tex in labels
+        # plt.xticks((-1, 0, 1), ('$-1$', r'$\pm 0$', '$+1$'), color='k', size=20)
+
+        # Left Y-axis labels, combine math mode and text mode
+        # plt.ylabel(r'\bf{phase field} $\phi$', {'color': 'C0', 'fontsize': 20})
+        # plt.yticks((0, 0.5, 1), (r'\bf{0}', r'\bf{.5}', r'\bf{1}'), color='k', size=20)
+
+    plt.title(algo, fontsize=16)
     plt.legend()
-    plt.savefig(sname + '_MRF_TSTT')
-    plt.show()
+    save_fig(plt_path, algo)
+    plt.clf()
 
 
 def prune_by_visited(seq_list):
