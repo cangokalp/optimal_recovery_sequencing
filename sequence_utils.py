@@ -15,6 +15,29 @@ from ctypes import *
 import subprocess
 import shutil
 import time
+from scipy import stats
+import matplotlib._color_data as mcd
+import caffeine
+SEED = 9
+
+
+SNAME = 'Moderate_5'
+NETWORK = 'SiouxFalls'
+NETFILE = "SiouxFalls/SiouxFalls_net.tntp"
+TRIPFILE = "SiouxFalls/SiouxFalls_trips.tntp"
+SAVED_FOLDER_NAME = "saved"
+
+PROJECT_ROOT_DIR = "."
+
+SAVED_DIR = os.path.join(PROJECT_ROOT_DIR, SAVED_FOLDER_NAME)
+os.makedirs(SAVED_DIR, exist_ok=True)
+
+NETWORK_DIR = os.path.join(SAVED_DIR, NETWORK)
+os.makedirs(NETWORK_DIR, exist_ok=True)
+
+SCENARIO_DIR = os.path.join(NETWORK_DIR, SNAME)
+os.makedirs(SCENARIO_DIR, exist_ok=True)
+
 
 def save(fname, data, extension='pickle'):
     path = fname + "." + extension
@@ -105,97 +128,9 @@ def solve_UE(net=None):
     return tstt
 
 
-
-
-
-def fix_one(net1, fixed_state, to_fix, tstt_state, days_state):
-    net = deepcopy(net1)
-    duration = damage_dict[to_fix]
-    net.link[to_fix].add_link_back()
-    solve_UE(net=net)
-    tstt_after = find_tstt(net=net)
-    fixed_state.append(to_fix)
-    tstt_state.append(tstt_after)
-    days_state.append(duration)
-
-    return net, fixed_state, tstt_state, days_state
-
-
-def eval_sequence(net, order_list, after_eq_tstt, before_eq_tstt, if_list=None, importance=False):
-    days_list = []
-    tstt_list = []
-    fp = None
-    seq_list = []
-    if importance:
-        fp = []
-        firstfp = 1
-        for link_id in order_list:
-            firstfp -= if_list[link_id]
-        fp.append(firstfp * 100)
-        curfp = firstfp
-
-    T = 0
-    for link_id in order_list:
-        T += damage_dict[link_id]
-
-    level = 0
-    prev_linkid = None
-    tstt_before = after_eq_tstt
-    for link_id in order_list:
-        level += 1
-        days_list.append(damage_dict[link_id])
-        net.link[link_id].add_link_back()
-        solve_UE(net=net)
-        tstt_after = find_tstt(net=net)
-        tstt_list.append(tstt_after)
-
-        seq = Node(link_id=link_id, parent=prev_linkid, net=deepcopy(net), tstt_after=tstt_after,
-                   tstt_before=tstt_before, level=level, days=damage_dict[link_id], T=T)
-        seq_list.append(seq)
-        prev_linkid = seq
-        tstt_before = tstt_after
-
-        if importance:
-            curfp += if_list[link_id]
-            fp.append(curfp * 100)
-
-    tot_area = 0
-    for i in range(len(days_list)):
-        if i == 0:
-            tot_area += days_list[i] * (after_eq_tstt - before_eq_tstt)
-        else:
-            tot_area += days_list[i] * (tstt_list[i - 1] - before_eq_tstt)
-    return tot_area, seq_list
-
-
-def find_max_relief(links_eligible_addback, fixed=[], cur_tstt=None):
-    days_list = []
-    tstt_list = []
-    relief_list = []
-    tot_day = sum(damage_dict.values())
-    for link_id in fixed:
-        tot_day -= damage_dict[link_id]
-
-    for link_id in links_eligible_addback:
-        wouldaDay = damage_dict[link_id]
-        days_list.append(wouldaDay)
-        mynet.link[link_id].add_link_back()
-        solve_UE(net=mynet)
-        wouldaTSTT = find_tstt(net=mynet)
-        tstt_list.append(wouldaTSTT)
-
-        # relief_list.append((tot_day - wouldaDay)*(cur_tstt - wouldaTSTT))
-        relief_list.append((tot_day - wouldaDay) * (cur_tstt - wouldaTSTT))
-
-        mynet.link[link_id].remove()
-    # ind = tstt_list.index(min(tstt_list))
-    # ind = relief_list.index(max(relief_list))
-    ind = relief_list.index(min(relief_list))
-
-    return links_eligible_addback[ind], tstt_list[ind], days_list[ind]
-
-
 def save_fig(plt_path, algo, tight_layout=True, fig_extension="png", resolution=300):
+    plt_path = os.path.join(plt_path, "figures")
+    os.makedirs(plt_path, exist_ok=True)
     path = os.path.join(plt_path, algo + "." + fig_extension)
     print("Saving figure", algo)
 
@@ -205,7 +140,7 @@ def save_fig(plt_path, algo, tight_layout=True, fig_extension="png", resolution=
 
 
 
-def graph_current(tstt_state, days_state, before_eq_tstt, after_eq_tstt, path, plt_path, algo):
+def graph_current(tstt_state, days_state, before_eq_tstt, after_eq_tstt, path, plt_path, algo, together, place):
 
     N = sum(days_state)
 
@@ -233,35 +168,41 @@ def graph_current(tstt_state, days_state, before_eq_tstt, after_eq_tstt, path, p
         x[j] = sum(days_state[:j])
 
 
-    plt.figure(figsize=(16,8))
+
+    if together:
+        plt.subplot(place)
+    else:
+        plt.figure(figsize=(16,8))
+
     plt.fill_between(x, y, before_eq_tstt, step="post",
-                     color='green', alpha=0.2)
+                     color='green', alpha=0.2, label='TOTAL AREA:' + '{0:1.5e}'.format(tot_area))
     # plt.step(x, y, label='tstt', where="post")
     plt.xlabel('DAYS')
     plt.ylabel('TSTT')
 
-    plt.ylim(before_eq_tstt, after_eq_tstt + 1000)
+    plt.ylim((before_eq_tstt, after_eq_tstt + after_eq_tstt*0.07))
+
 
     for i in range(len(tstt_state)):
 
-        print(y[i], y[i+1])
         start = sum(days_state[:i])
-        # bbox_props = dict(boxstyle="rarrow,pad=0.3", fc="w", ec="b", alpha=0.8, lw=1)
-        # t = plt.text(start + days_state[i]/2, y[i] + 5, round(days_state[i],2), ha="center", va="center",
-            # size=10,
-            # bbox=bbox_props)
-        # bb = t.get_bbox_patch()
-        # bb.set_boxstyle("darrow", pad=0.3)
+
+        bbox_props = dict(boxstyle="round,pad=0.3", fc="w", ec="b", alpha=0.8, lw=1)
+        t = plt.text(start + N*0.01, y[i] + before_eq_tstt*0.01, "link: " + path[i] + '\n' + "time: " + str(round(days_state[i],2)) , ha='left', size=8,
+            bbox=bbox_props)
+        bb = t.get_bbox_patch()
+
+        # start + days_state[i]/2
+        # plt.annotate("link: " + path[i], (start, y[i]), textcoords='offset points', xytext=(5,15), ha='left', size='smaller') 
+        # plt.annotate("time: " + str(round(days_state[i],2)), (start, y[i]), textcoords='offset points', xytext=(5,5), ha='left', size='smaller') #, arrowprops=dict(width= days_state[i])) 
         
-        plt.annotate("link: " + path[i], (start + days_state[i]/2, y[i]), textcoords='offset points', xytext=(0,15), ha='center') 
-        plt.annotate("repair time: " + str(round(days_state[i],2)), (start + days_state[i]/2, y[i]), textcoords='offset points', xytext=(0,5), ha='center') #, arrowprops=dict(width= days_state[i])) 
         # plt.annotate("", xy=(start + days_state[i], y[i]), xytext=(start, y[i]) , textcoords='offset points', ha='center', arrowprops=dict(arrowstyle='<->', connectionstyle="arc3"))
         # plt.arrow(0.85, 0.5, dx = -0.70, dy = 0, head_width=0.05, head_length=0.03, linewidth=4, color='g', length_includes_head=True)
+        
         plt.annotate(s='', xy=(start + days_state[i], y[i]), xytext=(start, y[i]), arrowprops=dict(arrowstyle='<->', color='blue'))
-
         plt.annotate(s='', xy=(start + days_state[i], y[i]), xytext=(start + days_state[i], y[i+1]), arrowprops=dict(arrowstyle='<->', color='indigo'))
 
-        plt.annotate("reduction: " + str(round(y[i] - y[i+1], 2)), xy=(start + days_state[i], (y[i] - y[i+1])/2), xytext=(10,10), textcoords='offset points', ha='left') #, arrowprops=dict(width= days_state[i])) 
+        # plt.annotate("" + str(round(y[i] - y[i+1], 2)), xy=(start + days_state[i], (y[i] - y[i+1])/2), xytext=(10,10), textcoords='offset points', ha='left') #, arrowprops=dict(width= days_state[i])) 
 
         #animation example:
         # import numpy as np
@@ -296,68 +237,199 @@ def graph_current(tstt_state, days_state, before_eq_tstt, after_eq_tstt, path, p
         # Left Y-axis labels, combine math mode and text mode
         # plt.ylabel(r'\bf{phase field} $\phi$', {'color': 'C0', 'fontsize': 20})
         # plt.yticks((0, 0.5, 1), (r'\bf{0}', r'\bf{.5}', r'\bf{1}'), color='k', size=20)
-
+    
     plt.title(algo, fontsize=16)
+    plt.legend(loc='upper right', fontsize=14)
+    
+    if not together:    
+        save_fig(plt_path, algo)
+        plt.clf()
+
+
+
+
+
+def mean_std_lists(metric_values, sample_size):
+    t_critical = stats.t.ppf(q = 0.9, df=sample_size)
+    
+    mean = np.mean(metric_values)
+    stdev = np.std(metric_values)    # Get the sample standard deviation
+    sigma = stdev/np.sqrt(sample_size)  # Standard deviation estimate
+    error = t_critical * sigma
+
+    return mean, error    
+
+def prep_dictionaries(method_dict):
+    method_dict['_obj'] = []
+    method_dict['_num_tap'] = []
+    method_dict['_elapsed'] = []
+
+def result_table(reps, file_path):
+
+    filenames = ['algo_solution', 'min_seq', 'greedy_solution', 'importance_factor_bound'] 
+
+    heuristic = {}
+    greedy = {}
+    brute_force = {}
+    importance_factor = {}
+
+    dict_list = [heuristic, brute_force, greedy, importance_factor]
+    key_list = ['_obj', '_num_tap', '_elapsed']
+
+    for method_dict in dict_list:
+        prep_dictionaries(method_dict)
+
+    for rep in range(reps):
+        for method_dict in dict_list:
+            for key in key_list:
+                method_dict[key].append(load(os.path.join(file_path, str(rep)) + '/' + filenames[dict_list.index(method_dict)] + key))
+
+    sample_size = reps
+
+
+    obj_means = []
+    tap_means = []
+    elapsed_means = []
+
+    obj_err = []
+    tap_err = []
+    elapsed_err = []
+
+
+    optimal = np.array(brute_force['_obj'])
+
+    for method_dict in dict_list:
+        if method_dict == brute_force:
+            continue
+
+        objs = np.array(method_dict['_obj'])
+        objs = objs - optimal
+        objs = np.maximum(0, objs)
+        mean, error = mean_std_lists(objs, sample_size)
+        obj_means.append(mean)
+        obj_err.append(error)
+
+        taps = method_dict['_num_tap']
+        mean, error = mean_std_lists(taps, sample_size)
+        tap_means.append(mean)
+        tap_err.append(error)
+
+        elapsed_values = method_dict['_elapsed']
+        mean, error = mean_std_lists(elapsed_values, sample_size)
+        elapsed_means.append(mean)
+        elapsed_err.append(error)
+
+    obj_means_scaled = obj_means/max(obj_means)
+    obj_err_scaled = obj_err/max(obj_means)
+
+    tap_means_scaled = tap_means/max(tap_means)
+    tap_err_scaled = tap_err/max(tap_means)
+
+    elapsed_means_scaled = elapsed_means/max(elapsed_means)
+    elapsed_err_scaled = elapsed_err/max(elapsed_means)
+
+    plt.figure()
+
+    barWidth = 0.2
+    r_obj = np.arange(len(obj_means))
+    r_tap = [x + barWidth for x in r_obj]
+    r_elapsed = [x + 2*barWidth for x in r_obj]
+
+    # hatch='///', hatch='\\\\\\', hatch='xxx'
+    plt.bar(r_obj, obj_means_scaled, width = barWidth, edgecolor = 'black', color='#087efe', ecolor='#c6ccce', alpha=0.8, yerr=obj_err_scaled, capsize=7, label='Avg (Method - Optimal)')
+    plt.bar(r_tap, tap_means_scaled, width = barWidth, edgecolor = 'black', color='#b7fe00', ecolor='#c6ccce', alpha=0.8, yerr=tap_err_scaled, capsize=7, label='Avg Tap Solved')
+    plt.bar(r_elapsed, elapsed_means_scaled, width = barWidth, edgecolor = 'black', color='#ff9700', ecolor='#c6ccce', alpha=0.8, yerr=elapsed_err_scaled, capsize=7, label='Avg Time Elapsed (s)')
+    
+
+    # tap_means_scaled[i]/2
+    dict_list.remove(brute_force)
+    for i in range(len(dict_list)):
+        plt.annotate('{0:1.1e}'.format(obj_means[i]), (i , 0), textcoords='offset points', xytext=(0,20), ha='center', va='bottom', rotation=70)
+        plt.annotate('{0:1.1f}'.format(tap_means[i]), (i + barWidth, 0), textcoords='offset points', xytext=(0,20), ha='center', va='bottom', rotation=70)  
+        plt.annotate('{0:1.1f}'.format(elapsed_means[i]), (i + 2*barWidth, 0), textcoords='offset points', xytext=(0,20), ha='center', va='bottom', rotation=70) 
+
+
+
+    plt.ylabel('Normalized Metric Value')
+    plt.xticks([(r + barWidth) for r in range(len(obj_means))], ['Heuristic', 'Greedy', 'Importance_Factor'])
+    plt.xlabel('Method')
     plt.legend()
-    save_fig(plt_path, algo)
-    plt.clf()
+    plt.tight_layout()
+    plt.show()
+    # plt.savefig('plots/' + 'averaged_results')
 
 
-def prune_by_visited(seq_list):
-    path_set_list = []
-    removal_list = []
-    for seq in seq_list:
-        path_set = seq.path_set
-        if path_set not in path_set_list:
-            path_set_list.append(path_set)
-        else:
-            seq2 = seq_list[path_set_list.index(path_set)]
-            if seq.realized < seq2.realized:
-                removal_list.append(seq2)
-            elif seq2.realized < seq.realized:
-                removal_list.append(seq)
-
-    seq_list = list(set(seq_list) - set(removal_list))
-
-    return seq_list
 
 
-def prune_by_bounds(seq_list):
-    path_set_list = []
-    removal_list = []
-
-    for seq in seq_list:
-        for seq2 in seq_list:
-            if seq != seq2:
-                if seq.ub < seq2.lb:
-                    removal_list.append(seq2)
-                elif seq2.ub < seq.lb:
-                    removal_list.append(seq)
-
-    seq_list = list(set(seq_list) - set(removal_list))
-
-    return seq_list
 
 
-def prune(seq_list):
-    seq_list = prune_by_visited(seq_list)
-    seq_list = prune_by_bounds(seq_list)
-    return seq_list
+    # import numpy as np
+    # import matplotlib.pyplot as plt
 
 
-def expand_seq(seq, lad, level):
-    tstt_before = seq.tstt_after
-    net = deepcopy(seq.net)
-    net.link[lad].add_link_back()
-    solve_UE(net=net)
-    tstt_after = find_tstt(net=net)
-    seq = Node(link_id=lad, parent=seq, net=net, tstt_after=tstt_after,
-               tstt_before=tstt_before, level=level, damaged_dict=damage_dict)
-    seq.setBounds(wb, bb)
-    return seq
+    # data = [[ 66386, 174296,  75131, 577908,  32015],
+    #         [ 58230, 381139,  78045,  99308, 160454],
+    #         [ 89135,  80552, 152558, 497981, 603535],
+    #         [ 78415,  81858, 150656, 193263,  69638],
+    #         [139361, 331509, 343164, 781380,  52269]]
 
-#
+    # columns = ('Freeze', 'Wind', 'Flood', 'Quake', 'Hail')
+    # rows = ['%d year' % x for x in (100, 50, 20, 10, 5)]
 
+    # values = np.arange(0, 2500, 500)
+    # value_increment = 1000
+
+    # # Get some pastel shades for the colors
+    # colors = plt.cm.BuPu(np.linspace(0, 0.5, len(rows)))
+    # n_rows = len(data)
+
+    # index = np.arange(len(columns)) + 0.3
+    # bar_width = 0.4
+
+    # # Initialize the vertical-offset for the stacked bar chart.
+    # y_offset = np.zeros(len(columns))
+
+    # # Plot bars and create text labels for the table
+    # cell_text = []
+    # for row in range(n_rows):
+    #     plt.bar(index, data[row], bar_width, bottom=y_offset, color=colors[row])
+    #     y_offset = y_offset + data[row]
+    #     cell_text.append(['%1.1f' % (x / 1000.0) for x in y_offset])
+    # # Reverse colors and text labels to display the last value at the top.
+    # colors = colors[::-1]
+    # cell_text.reverse()
+
+    # # Add a table at the bottom of the axes
+    # the_table = plt.table(cellText=cell_text,
+    #                       rowLabels=rows,
+    #                       rowColours=colors,
+    #                       colLabels=columns,
+    #                       loc='bottom')
+
+    # # Adjust layout to make room for the table:
+    # plt.subplots_adjust(left=0.2, bottom=0.2)
+
+    # plt.ylabel("Loss in ${0}'s".format(value_increment))
+    # plt.yticks(values * value_increment, ['%d' % val for val in values])
+    # plt.xticks([])
+    # plt.title('Loss by Disaster')
+
+    # plt.show()
+
+def get_tables():
+
+    broken_bridges = ['7']
+    repetitions = [10]
+
+    for broken in broken_bridges:
+
+        ULT_SCENARIO_DIR = os.path.join(SCENARIO_DIR, broken)
+        reps = repetitions[broken_bridges.index(broken)]
+
+        result_table(reps, ULT_SCENARIO_DIR)
+
+
+    pdb.set_trace()
 
 # sname = 'Moderate_5'
 # # for sname in snames:
