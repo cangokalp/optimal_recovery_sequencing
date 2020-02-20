@@ -9,3 +9,9 @@ __pycache__/
 *.pickle
 # ignore python cache files
 *.pyc
+# ignore saved runs
+saved/
+# ignore text files - outputs of TAP solutions
+*.txt
+# ignore bin files
+*.bin
