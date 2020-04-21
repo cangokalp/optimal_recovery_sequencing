@@ -1261,44 +1261,41 @@ def main(save_dir, damaged_dict):
 
 
 if __name__ == '__main__':
-
-    snames = ['Moderate_1', 'Moderate_2', 'Moderate_3', 'Moderate_4', 'Moderate_5', 
+    snames = ['Moderate_3', 'Moderate_4', 'Moderate_5', 
     'Strong_1', 'Strong_3', 'Strong_4', 'Strong_5']
 
-    
-    # full experiments wout optimal:
-    
-    # for sname in snames:
-    #     damaged_dict = read_scenario(sname=sname)
+        # full experiments wout optimal:
+    for sname in snames:
+        damaged_dict = read_scenario(sname=sname)
 
-    #     NUM_LINKS = str(len(damaged_dict))
+        NUM_LINKS = str(len(damaged_dict))
 
-    #     if sname.find('Moderate') >= 0:
-    #         save_sname = 'Moderate'
-    #     else:
-    #         save_sname = 'Strong'
+        if sname.find('Moderate') >= 0:
+            save_sname = 'Moderate'
+        else:
+            save_sname = 'Strong'
 
-    #     SCENARIO_DIR = os.path.join(NETWORK_DIR, save_sname)
-    #     os.makedirs(SCENARIO_DIR, exist_ok=True)
+        SCENARIO_DIR = os.path.join(NETWORK_DIR, save_sname)
+        os.makedirs(SCENARIO_DIR, exist_ok=True)
 
-    #     ULT_SCENARIO_DIR = os.path.join(SCENARIO_DIR, NUM_LINKS)
-    #     os.makedirs(ULT_SCENARIO_DIR, exist_ok=True)
+        ULT_SCENARIO_DIR = os.path.join(SCENARIO_DIR, NUM_LINKS)
+        os.makedirs(ULT_SCENARIO_DIR, exist_ok=True)
 
-    #     repetitions = get_folders(ULT_SCENARIO_DIR)
+        repetitions = get_folders(ULT_SCENARIO_DIR)
 
-    #     if len(repetitions) == 0:
-    #         max_rep = -1
-    #     else:
-    #         reps = [int(i) for i in repetitions]
-    #         max_rep = max(reps)
+        if len(repetitions) == 0:
+            max_rep = -1
+        else:
+            reps = [int(i) for i in repetitions]
+            max_rep = max(reps)
         
-    #     rep = max_rep + 1
+        rep = max_rep + 1
 
         
-    #     ULT_SCENARIO_REP_DIR = os.path.join(ULT_SCENARIO_DIR, str(rep))
-    #     os.makedirs(ULT_SCENARIO_REP_DIR, exist_ok=True)
+        ULT_SCENARIO_REP_DIR = os.path.join(ULT_SCENARIO_DIR, str(rep))
+        os.makedirs(ULT_SCENARIO_REP_DIR, exist_ok=True)
 
-    #     main(save_dir=ULT_SCENARIO_REP_DIR, damaged_dict=damaged_dict)
+        main(save_dir=ULT_SCENARIO_REP_DIR, damaged_dict=damaged_dict)
 
     ##### experiments for not full
 
