@@ -1,7 +1,5 @@
-# ignore network files
-SiouxFalls/
+
 __pycache__/
-# ignore excel files
 # ignore DS_Store
 .DS_Store
 # ignore pickle files
