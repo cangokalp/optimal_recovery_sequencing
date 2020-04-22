@@ -10,5 +10,3 @@ __pycache__/
 saved/
 # ignore text files - outputs of TAP solutions
 *.txt
-# ignore bin files
-*.bin
