@@ -10,6 +10,8 @@ from sequence_helpers import *
 from graphing import *
 
 extension = '.pickle'
+memory = {}
+
 
 
 class Node():
@@ -70,6 +72,7 @@ class Node():
                 self.days = 0
                 self.days_past = self.days
 
+
     def __eq__(self, other):
         return self.net.fixed == other.net.fixed
 
@@ -110,29 +113,48 @@ def get_successors_b(node, wb, bb):
 
 def expand_sequence_f(node, a_link, level, damaged_dict):
     """given a link and a node, it expands the sequence"""
+    solved = 0
     tstt_before = node.tstt_after
     net = deepcopy(node.net)
     net.link[a_link].add_link_back()
     added = [a_link]
     net.not_fixed = set(net.not_fixed).difference(set(added))
-    tstt_after = solve_UE(net=net)
+
+    if frozenset(net.not_fixed) in memory.keys():
+        net, tstt_after = memory[frozenset(net.not_fixed)]
+        
+    else:
+        tstt_after = solve_UE(net=net)
+        memory[frozenset(net.not_fixed)] = (net, tstt_after)
+        solved = 1
+
     node = Node(link_id=a_link, parent=node, net=net, tstt_after=tstt_after,
                 tstt_before=tstt_before, level=level, damaged_dict=damaged_dict)
 
-    return node
+    return node, solved
 
 
 def expand_sequence_b(node, a_link, level, damaged_dict):
     """given a link and a node, it expands the sequence"""
+    solved = 0
     tstt_after = node.tstt_before
     net = deepcopy(node.net)
     net.link[a_link].remove()
     removed = [a_link]
     net.not_fixed = net.not_fixed.union(set(removed))
-    tstt_before = solve_UE(net=net)
+
+
+    if frozenset(net.not_fixed) in memory.keys():
+        net, tstt_before = memory[frozenset(net.not_fixed)]
+    else:
+        tstt_before = solve_UE(net=net)
+        memory[frozenset(net.not_fixed)] = (net, tstt_before)
+        solved = 1
+
+    # tstt_before = solve_UE(net=net)
     node = Node(link_id=a_link, parent=node, net=net, tstt_after=tstt_after,
                 tstt_before=tstt_before, level=level, damaged_dict=damaged_dict)
-    return node
+    return node, solved
 
 
 def orderlists(benefits, days, slack, reverse=True):
@@ -481,9 +503,9 @@ def expand_forward(damaged_dict, wb, bb, start_node, end_node, open_list_b, open
     for a_link in eligible_expansions:
 
         # Create new node
-        new_node = expand_sequence_f(
+        new_node, solved = expand_sequence_f(
             current_node, a_link, level=current_node.level + 1, damaged_dict=damaged_dict)
-        num_tap_solved += 1
+        num_tap_solved += solved
         # Append
         children.append(new_node)
 
@@ -593,9 +615,9 @@ def expand_backward(damaged_dict, wb, bb, start_node, end_node, open_list_b, ope
     for a_link in eligible_expansions:
 
         # Create new node
-        new_node = expand_sequence_b(
+        new_node, solved = expand_sequence_b(
             current_node, a_link, level=current_node.level - 1, damaged_dict=damaged_dict)
-        num_tap_solved += 1
+        num_tap_solved += solved
         # Append
         children.append(new_node)
 
@@ -1126,7 +1148,7 @@ def main(save_dir, damaged_dict):
 
     num_damaged = len(damaged_dict)
 
-    if num_damaged >= 8:
+    if num_damaged >= 10:
         opt = False
 
     net_after, after_eq_tstt = state_after(damaged_links, save_dir)
@@ -1261,8 +1283,7 @@ def main(save_dir, damaged_dict):
 
 
 if __name__ == '__main__':
-    snames = ['Moderate_3', 'Moderate_4', 'Moderate_5', 
-    'Strong_1', 'Strong_3', 'Strong_4', 'Strong_5']
+    snames = ['Moderate_1', 'Moderate_2', 'Moderate_3']
 
         # full experiments wout optimal:
     for sname in snames:
@@ -1410,6 +1431,6 @@ if __name__ == '__main__':
 
     #             main(save_dir=ULT_SCENARIO_REP_DIR, damaged_dict=damaged_dict)
 
-    get_tables(['Moderate', 'Strong'])
-    get_sequence_graphs(['Moderate', 'Strong'])
+    # get_tables(['Moderate', 'Strong'])
+    # get_sequence_graphs(['Moderate', 'Strong'])
 
