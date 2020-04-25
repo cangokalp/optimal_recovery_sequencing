@@ -125,7 +125,7 @@ def solve_UE(net=None):
         # print(a_link, df.loc[ind])
     df.to_csv('current_net.tntp', index=False, sep="\t")
     # send it to c code
-    args = ("tap-b/bin/tap current_net.tntp SiouxFalls/SiouxFalls_trips.tntp 2", "-c")
+    args = ("tap-b/bin/tap current_net.tntp SiouxFalls/SiouxFalls_trips.tntp", "-c")
     popen = subprocess.Popen(args, stdout=subprocess.PIPE, shell=True)
     popen.wait()
     output = popen.stdout.read()
