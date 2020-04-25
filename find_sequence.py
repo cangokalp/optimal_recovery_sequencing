@@ -1327,7 +1327,7 @@ def main(save_dir, damaged_dict):
 
 
 if __name__ == '__main__':
-    snames = ['Moderate_4', 'Moderate_5', 'Strong_1',
+    snames = ['Moderate_3', 'Moderate_4', 'Moderate_5', 'Strong_1',
      'Strong_2', 'Strong_3', 'Strong_4', 'Strong_5']
 
         # full experiments wout optimal:
