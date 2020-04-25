@@ -51,8 +51,8 @@ threadpool thpool;
  */
 void AlgorithmB(network_type *network, algorithmBParameters_type *parameters) {
 #if PARALLELISM
-pthread_mutex_init(&shift_lock, NULL);
-thpool = thpool_init(parameters->numThreads);
+    pthread_mutex_init(&shift_lock, NULL);
+    thpool = thpool_init(parameters->numThreads);
 #endif
     /* Strong connectivity check */
     makeStronglyConnectedNetwork(network);
@@ -86,24 +86,36 @@ thpool = thpool_init(parameters->numThreads);
         /* Iterate over batches of origins */
         for (batch = 0; batch < network->numBatches; batch++) {
             /* Do main work for this batch */
+#if NCTCOG_ENABLED
             displayMessage(FULL_NOTIFICATIONS, "Loading Batch...\n");
+#endif
             loadBatch(batch, network, &bushes, parameters);
+#if NCTCOG_ENABLED
             displayMessage(FULL_NOTIFICATIONS, "Loaded Batch...\nUpdating Batch Bush...\n");
+#endif
             updateBatchBushes(network, bushes, &lastClass, parameters);
+#if NCTCOG_ENABLED
             displayMessage(FULL_NOTIFICATIONS, "Updated Batch Bush...\nUpdating Batch Flows...\n");
+#endif
             updateBatchFlows(network, bushes, &lastClass, parameters);
+#if NCTCOG_ENABLED
             displayMessage(FULL_NOTIFICATIONS, "Updated Batch Flows...\nStoring batch ...\n");
+#endif
             storeBatch(batch, network, bushes, parameters);
+#if NCTCOG_ENABLED
             displayMessage(FULL_NOTIFICATIONS, "Stored Batch\n");
-
+#endif
             /* Check gap and report progress. */
             clock_gettime(CLOCK_MONOTONIC_RAW, &tock);
             elapsedTime += (double)((1000000000 * (tock.tv_sec - tick.tv_sec) + tock.tv_nsec - tick.tv_nsec)) * 1.0/1000000000; /* Exclude gap calculations from run time */
             stopTime = clock();
+#if NCTCOG_ENABLED
             displayMessage(FULL_NOTIFICATIONS, "Calculating batch relative gap...\n");
-
+#endif
             batchGap = bushRelativeGap(network, bushes, parameters);
+#if NCTCOG_ENABLED
             displayMessage(FULL_NOTIFICATIONS, "Calculated batch relative gap...\n");
+#endif
             gap += batchGap;
             if (parameters->includeGapTime == FALSE) stopTime = clock(); 
             if (parameters->calculateBeckmann == TRUE) {
@@ -462,7 +474,7 @@ void genericTopologicalOrder(int origin, network_type *network,
                              bushes_type *bushes,
                              algorithmBParameters_type *parameters) {
     arcListElt *curArc;
-    int i, j, m,  next, highestMerge = 0;
+    int i, j, k, m,  next, highestMerge = 0;
 //    displayMessage(FULL_NOTIFICATIONS, "Starting topo order with indegree vector\n");
     declareVector(int, indegree, network->numNodes);
     for (i = 0; i < network->numNodes; i++) {
@@ -488,12 +500,12 @@ void genericTopologicalOrder(int origin, network_type *network,
         if (indegree[i] == 0)
             enQueue(&LIST, i);
     while (LIST.curelts > 0) {
-        i = deQueue(&LIST);
-        bushes->bushOrder[origin][next] = i;
-        if (isMergeNode(origin, i, bushes) == TRUE) highestMerge = next;
+        k = deQueue(&LIST);
+        bushes->bushOrder[origin][next] = k;
+        if (isMergeNode(origin, k, bushes) == TRUE) highestMerge = next;
         next++;
-        for (curArc = network->nodes[i].forwardStar.head; curArc != NULL;
-                curArc = curArc->next) {
+        for (curArc = network->nodes[k].forwardStar.head; curArc != NULL;
+             curArc = curArc->next) {
             if (isInBush(origin, ptr2arc(network, curArc->arc), network,
                          bushes) == TRUE) {
                 j = curArc->arc->head;
@@ -505,6 +517,23 @@ void genericTopologicalOrder(int origin, network_type *network,
     if (next < network->numNodes) {
         displayMessage(LOW_NOTIFICATIONS, "next: %d, network->numNodes: %d\n", 
                            next, network->numNodes);
+        for (i = 0; i < network->numNodes; i++) {
+            displayMessage(LOW_NOTIFICATIONS, "%d: %d, %d %d %d\n",
+                           i, bushes->bushOrder[origin][i], indegree[i], origin2node(network, origin), isMergeNode(origin, i, bushes));
+            if (indegree[i] > 0) {
+                for (curArc = network->nodes[i].forwardStar.head; curArc != NULL;
+                     curArc = curArc->next) {
+                    int hi = ptr2arc(network, curArc->arc);
+                    if (isInBush(origin, ptr2arc(network, curArc->arc), network,
+                                 bushes) == TRUE) {
+                        displayMessage(LOW_NOTIFICATIONS, "Flow on incoming link in bush %f ", i, bushes->flow_par[origin][hi]);
+                    } else {
+                        displayMessage(LOW_NOTIFICATIONS, "Flow on incoming link not in bush %f ", i, bushes->flow_par[origin][hi]);
+                    }
+                }
+                displayMessage(LOW_NOTIFICATIONS,"\n");
+            }
+        }
         fatalError("Graph given to bushTopologicalOrder contains a cycle.");
     }
     bushes->lastMerge[origin] = highestMerge;
@@ -575,7 +604,8 @@ int merge2pred(int m) {
  * this requires examining the predecessor of link (i,j)'s head.
  */
 bool isInBush(int origin, int ij, network_type *network, bushes_type *bushes) {
-    int backarc, j = network->arcs[ij].head, m;
+    int backarc, m;
+    int j = network->arcs[ij].head;
     merge_type *merge;
     if (isMergeNode(origin, j, bushes) == FALSE) {
         return (bushes->pred[origin][j] == ij) ? TRUE : FALSE;

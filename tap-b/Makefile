@@ -17,7 +17,7 @@ OBJECTS := $(SOURCES:$(SRCDIR)/%.c=$(OBJDIR)/%.o)
 RM = rm -f
 
 CC = gcc
-CFLAGS = -std=c99 -pthread -Wall $(INCLUDEFLAG) $(DEPFLAGS)
+CFLAGS = -pthread -Wall $(INCLUDEFLAG) $(DEPFLAGS)
 CFLAGS += -Wextra -Wwrite-strings -Wno-parentheses -Winline
 CFLAGS += -Wpedantic -Warray-bounds
 DEBUGFLAGS = -g -O0
@@ -46,6 +46,16 @@ parallel: $(BINDIR)/$(PROJECT)
 .PHONY: parallel-d
 parallel-d: CFLAGS += -DPARALLELISM=1 -g
 parallel-d: $(BINDIR)/$(PROJECT)
+
+# ------- nctcog: build the main project ------
+.PHONY: nctcog
+nctcog: CFLAGS += -DNCTCOG_ENABLED=1
+nctcog: $(BINDIR)/$(PROJECT)
+
+# ------- nctcog-par: build the main project ------
+.PHONY: nctcog-par
+nctcog-par: CFLAGS += -DPARALLELISM=1 -DNCTCOG_ENABLED=1
+nctcog-par: $(BINDIR)/$(PROJECT)
 
 # ---------- release target: extra optimization ----
 
