@@ -105,7 +105,7 @@ def net_update(net):
     return tstt
 
 
-def solve_UE(net=None):
+def solve_UE(net=None, relax=False):
 
     # modify the net.txt file to send to c code
     
@@ -125,7 +125,10 @@ def solve_UE(net=None):
         # print(a_link, df.loc[ind])
     df.to_csv('current_net.tntp', index=False, sep="\t")
     # send it to c code
-    args = ("tap-b/bin/tap current_net.tntp SiouxFalls/SiouxFalls_trips.tntp", "-c")
+    if relax:
+        args = ("tap-b_relax/bin/tap current_net.tntp SiouxFalls/SiouxFalls_trips.tntp", "-c")
+    else:
+        args = ("tap-b/bin/tap current_net.tntp SiouxFalls/SiouxFalls_trips.tntp", "-c")
     popen = subprocess.Popen(args, stdout=subprocess.PIPE, shell=True)
     popen.wait()
     output = popen.stdout.read()

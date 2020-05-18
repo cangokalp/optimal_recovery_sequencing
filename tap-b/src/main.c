@@ -95,7 +95,7 @@ void main_TNTP(int argc, char* argv[]) {
    setBatches(network, network->numOrigins, argv[2] == NULL);
 
    displayMessage(FULL_NOTIFICATIONS, "Starting Algorithm B...\n");
-   Bparameters.convergenceGap = 1e-14;
+   Bparameters.convergenceGap = 1e-6;
    Bparameters.maxIterations = 200;
    Bparameters.maxTime = 10000;
    // Bparameters.storeBushes = TRUE; // Uncomment if you want to save bushes for future warm start use
@@ -174,7 +174,7 @@ void main_NCTCOG(int argc, char* argv[]) {
 
 
     displayMessage(FULL_NOTIFICATIONS, "Starting Algorithm B...\n");
-    Bparameters.convergenceGap = 1e-8;
+    Bparameters.convergenceGap = 1e-6;
     Bparameters.maxIterations = 5000;
     Bparameters.maxTime = 3600 * 24 * 7;
 
