@@ -17,7 +17,9 @@ memory = {}
 class Node():
     """A node class for bi-directional search for pathfinding"""
 
-    def __init__(self, visited=None, link_id=None, parent=None, net=None, tstt_after=None, tstt_before=None, level=None, damaged_dict=None, forward=True):
+    def __init__(self, visited=None, link_id=None, parent=None, net=None, tstt_after=None, tstt_before=None, level=None, damaged_dict=None, forward=True, relax=False):
+        
+        self.relax = relax
         self.forward = forward
         self.parent = parent
         self.level = level
@@ -30,6 +32,11 @@ class Node():
         self.g = 0
         self.h = 0
         self.f = 0
+        if relax:
+            self.err_rate=0.01
+        else:
+            self.err_rate=0
+
         self.assign_char()
 
     def assign_char(self):
@@ -46,7 +53,10 @@ class Node():
             self.after_eq_tstt = self.parent.after_eq_tstt
 
             self.realized = self.parent.realized + \
-                (self.tstt_before - self.before_eq_tstt) * self.days
+                (self.tstt_before - self.before_eq_tstt) * self.days * (1-self.err_rate)
+
+            self.realized_u = self.parent.realized_u + \
+                (self.tstt_before - self.before_eq_tstt) * self.days * (1+self.err_rate)
 
             self.not_visited = set(self.damaged_dict.keys()
                                    ).difference(self.visited)
@@ -65,10 +75,13 @@ class Node():
                 self.path = [self.link_id]
                 self.realized = (self.tstt_before -
                                  self.before_eq_tstt) * self.days
+                self.realized_u = (self.tstt_before -
+                                 self.before_eq_tstt) * self.days
                 self.days_past = self.days
 
             else:
                 self.realized = 0
+                self.realized_u = 0
                 self.days = 0
                 self.days_past = self.days
 
@@ -125,12 +138,12 @@ def expand_sequence_f(node, a_link, level, damaged_dict):
         net, tstt_after = memory[frozenset(net.not_fixed)]
         
     else:
-        tstt_after = solve_UE(net=net)
+        tstt_after = solve_UE(net=net, relax=node.relax)
         memory[frozenset(net.not_fixed)] = (net, tstt_after)
         solved = 1
 
     node = Node(link_id=a_link, parent=node, net=net, tstt_after=tstt_after,
-                tstt_before=tstt_before, level=level, damaged_dict=damaged_dict)
+                tstt_before=tstt_before, level=level, damaged_dict=damaged_dict, relax=node.relax)
 
     return node, solved
 
@@ -147,13 +160,13 @@ def expand_sequence_b(node, a_link, level, damaged_dict):
     if frozenset(net.not_fixed) in memory.keys():
         net, tstt_before = memory[frozenset(net.not_fixed)]
     else:
-        tstt_before = solve_UE(net=net)
+        tstt_before = solve_UE(net=net, relax=node.relax)
         memory[frozenset(net.not_fixed)] = (net, tstt_before)
         solved = 1
 
-    tstt_before = solve_UE(net=net)
+    # tstt_before = solve_UE(net=net)
     node = Node(link_id=a_link, parent=node, net=net, tstt_after=tstt_after,
-                tstt_before=tstt_before, level=level, damaged_dict=damaged_dict)
+                tstt_before=tstt_before, level=level, damaged_dict=damaged_dict, relax=node.relax)
     return node, solved
 
 
@@ -365,7 +378,7 @@ def set_bounds_bif(node, wb, bb, open_list_b, end_node, front_to_end=True, debug
         orderedw_benefits = []
         orderedb_benefits = []
         ##debug right here
-        node.ub = node.realized + other_end.realized
+        node.ub = node.realized_u + other_end.realized_u
         node.lb = node.realized + other_end.realized
 
         union = node.visited.union(other_end.visited)
@@ -388,8 +401,8 @@ def set_bounds_bif(node, wb, bb, open_list_b, end_node, front_to_end=True, debug
         if node.ub > maxub:
             maxub = node.ub
 
-    node.lb = minlb
-    node.ub = maxub
+    node.lb = minlb 
+    node.ub = maxub 
 
 
 def set_bounds_bib(node, wb, bb, open_list_f, start_node, front_to_end=True):
@@ -416,7 +429,7 @@ def set_bounds_bib(node, wb, bb, open_list_f, start_node, front_to_end=True):
         orderedw_benefits = []
         orderedb_benefits = []
 
-        node.ub = node.realized + other_end.realized
+        node.ub = node.realized_u + other_end.realized_u
         node.lb = node.realized + other_end.realized
 
         union = node.visited.union(other_end.visited)
@@ -665,7 +678,7 @@ def expand_backward(damaged_dict, wb, bb, start_node, end_node, open_list_b, ope
                 best_path = child.path[::-1]
 
 
-        if child.lb == child.ub:
+        if child.lb == child.ub and len(child.path) != len(child.damaged_dict):
             lo_link = set(damaged_dict.keys()).difference(set(child.visited))
             lo_link = lo_link.pop()
             best_path = [str(lo_link)] + child.path[::-1]
@@ -797,12 +810,19 @@ def search(damaged_dict, wb, bb, start_node, end_node, best_bound):
             return best_path, best_soln, num_tap_solved
 
     if best_path is None:
+        print('{} is {}'.format('bestpath', 'none'))
         pdb.set_trace()
 
         if len(damaged_dict) - len(best_soln_node.path):
             add_link = set(damaged_dict.keys()).difference(set(best_soln_node.visited))
             best_path.append(add_link)
             best_soln += (best_soln_node.tstt_after - best_soln_node.before_eq_tstt)*damaged_dict[add_link]
+    
+    if len(best_path) != len(damaged_links):
+        print('{} is not {}'.format('bestpath', 'full length'))
+        pdb.set_trace()
+
+
     return best_path, best_soln, num_tap_solved
 
 
@@ -1173,15 +1193,14 @@ def local_search(greedy_path):
     pass
 
 
-def main(save_dir, damaged_dict):
-    # np.random.seed(SEED)
+def main(save_dir, damaged_dict, num_links):
     opt = True
 
     # damaged_dict = read_scenario(sname=SNAME)
     damaged_links = [link for link in damaged_dict.keys()]
 
     take_out = np.random.choice(damaged_links, len(
-        damaged_links) - int(NUM_LINKS), replace=False)
+        damaged_links) - int(num_links), replace=False)
     save(save_dir + '/broken_links', take_out)
 
     print('Taking out: ', take_out)
@@ -1217,6 +1236,7 @@ def main(save_dir, damaged_dict):
     start_node.before_eq_tstt = before_eq_tstt
     start_node.after_eq_tstt = after_eq_tstt
     start_node.realized = 0
+    start_node.realized_u = 0
     start_node.level = 0
     start_node.visited, start_node.not_visited = set([]), set(damaged_links)
     start_node.net.fixed, start_node.net.not_fixed = set(
@@ -1277,12 +1297,55 @@ def main(save_dir, damaged_dict):
 
     # shutil.rmtree(net_after.save_dir)
 
+
+    #algo with gap 1e-4
+    r_algo_num_tap = best_benefit_taps + worst_benefit_taps
+    best_bound = np.inf
+
+    fname = net_after.save_dir + '/r_algo_solution'
+    
+    start_node.relax = True
+    end_node.relax = True
+    
+    if not os.path.exists(fname + extension):
+        search_start = time.time()
+        r_algo_path, r_algo_obj, r_search_tap_solved = search(
+            damaged_dict, wb, bb, start_node, end_node, best_bound)
+
+
+        net_after, after_eq_tstt = state_after(damaged_links, save_dir)
+        net_after.damaged_dict = damaged_dict
+        
+        first_net = deepcopy(net_after)
+        first_net.relax = False
+        r_algo_obj, _, _ = eval_sequence(
+                first_net, r_algo_path, after_eq_tstt, before_eq_tstt)
+
+
+        search_elapsed = time.time() - search_start
+
+        r_algo_num_tap += search_tap_solved
+        r_algo_elapsed = search_elapsed + benefit_analysis_elapsed
+
+        save(fname + '_obj', r_algo_obj)
+        save(fname + '_path', r_algo_path)
+        save(fname + '_num_tap', r_algo_num_tap)
+        save(fname + '_elapsed', r_algo_elapsed)
+    else:
+        r_algo_obj = load(fname + '_obj')
+        r_algo_path = load(fname + '_path')
+        r_algo_num_tap = load(fname + '_num_tap')
+        r_algo_elapsed = load(fname + '_elapsed')
+
+
+
     t = PrettyTable()
-    t.title = 'SiouxFalls' + ' with ' + NUM_LINKS + ' broken bridges'
+    t.title = 'SiouxFalls' + ' with ' + num_links + ' broken bridges'
     t.field_names = ['Method', 'Objective', 'Run Time', '# TAP']
     if opt:
         t.add_row(['OPTIMAL', opt_obj, opt_elapsed, opt_num_tap])
     t.add_row(['ALGORITHM', algo_obj, algo_elapsed, algo_num_tap])
+    t.add_row(['ALGORITHM_low_gap', r_algo_obj, r_algo_elapsed, r_algo_num_tap])
     t.add_row(['GREEDY', greedy_obj, greedy_elapsed, greedy_num_tap])
     t.add_row(['IMPORTANCE', importance_obj,
                importance_elapsed, importance_num_tap])
@@ -1327,155 +1390,81 @@ def main(save_dir, damaged_dict):
 
 
 if __name__ == '__main__':
-    snames = ['Moderate_3', 'Moderate_4', 'Moderate_5', 'Strong_1',
-     'Strong_2', 'Strong_3', 'Strong_4', 'Strong_5']
 
-        # full experiments wout optimal:
-    for sname in snames:
-        damaged_dict = read_scenario(sname=sname)
+    # parser = argparse.ArgumentParser(description='')
+    # parser.add_argument('')
+    # args = parser.parse_args()
 
-        NUM_LINKS = str(len(damaged_dict))
 
-        if sname.find('Moderate') >= 0:
-            save_sname = 'Moderate'
-        else:
-            save_sname = 'Strong'
-
-        SCENARIO_DIR = os.path.join(NETWORK_DIR, save_sname)
-        os.makedirs(SCENARIO_DIR, exist_ok=True)
-
-        ULT_SCENARIO_DIR = os.path.join(SCENARIO_DIR, NUM_LINKS)
-        os.makedirs(ULT_SCENARIO_DIR, exist_ok=True)
-
-        repetitions = get_folders(ULT_SCENARIO_DIR)
-
-        if len(repetitions) == 0:
-            max_rep = -1
-        else:
-            reps = [int(i) for i in repetitions]
-            max_rep = max(reps)
+    def run_exps(snames, broken_bridges, amount):
+        i = 0
+        j = 0
         
-        rep = max_rep + 1
+        for sname in snames:
 
-        
-        ULT_SCENARIO_REP_DIR = os.path.join(ULT_SCENARIO_DIR, str(rep))
-        os.makedirs(ULT_SCENARIO_REP_DIR, exist_ok=True)
+            if sname.find('Moderate') >= 0:
+                save_sname = 'Moderate'
+            else:
+                save_sname = 'Strong'
 
-        main(save_dir=ULT_SCENARIO_REP_DIR, damaged_dict=damaged_dict)
+            for broken in broken_bridges:
 
-    ##### experiments for not full
+                try:
+                    damaged_dict = read_scenario(sname=sname)
+                except:
+                    pdb.set_trace()
 
+                total_broken = len(damaged_dict)
 
-    # broken_bridges = ['5']
-    # amount = 2
+                if  int(broken) >= total_broken-2 :
+                    print('not this scenario')
+                    continue
 
-    # i = 0
-    # j = 0
+                NUM_LINKS = broken
 
-    # for sname in snames:
-    #     for broken in broken_bridges:
+                for p in range(amount):
+                    
+                    damaged_dict = read_scenario(sname=sname)
 
-    #         try:
-    #             damaged_dict = read_scenario(sname=sname)
-    #         except:
-    #             pdb.set_trace()
+                    SCENARIO_DIR = os.path.join(NETWORK_DIR, save_sname)
+                    os.makedirs(SCENARIO_DIR, exist_ok=True)
+                    
+                    ULT_SCENARIO_DIR = os.path.join(SCENARIO_DIR, NUM_LINKS)
+                    os.makedirs(ULT_SCENARIO_DIR, exist_ok=True)
 
-    #         total_broken = len(damaged_dict)
+                    repetitions = get_folders(ULT_SCENARIO_DIR)
 
-    #         if total_broken <= int(broken):
-    #             continue
-
-    #         NUM_LINKS = broken
-
-    #         for p in range(amount):
-    #             if sname.find('Moderate') >= 0:
-    #                 save_sname = 'Moderate'
-
-    #             else:
-    #                 save_sname = 'Strong'
-
-    #             SCENARIO_DIR = os.path.join(NETWORK_DIR, save_sname)
-    #             os.makedirs(SCENARIO_DIR, exist_ok=True)
-                
-    #             ULT_SCENARIO_DIR = os.path.join(SCENARIO_DIR, NUM_LINKS)
-    #             os.makedirs(ULT_SCENARIO_DIR, exist_ok=True)
-
-    #             repetitions = get_folders(ULT_SCENARIO_DIR)
-
-                
-    #             if len(repetitions) == 0:
-    #                 max_rep = -1
-    #             else:
-    #                 reps = [int(i) for i in repetitions]
-    #                 max_rep = max(reps)
-    #             rep = max_rep + 1
+                    
+                    if len(repetitions) == 0:
+                        max_rep = -1
+                    else:
+                        reps = [int(i) for i in repetitions]
+                        max_rep = max(reps)
+                    rep = max_rep + 1
 
 
-    #             ULT_SCENARIO_REP_DIR = os.path.join(ULT_SCENARIO_DIR, str(rep))
+                    ULT_SCENARIO_REP_DIR = os.path.join(ULT_SCENARIO_DIR, str(rep))
 
-    #             os.makedirs(ULT_SCENARIO_REP_DIR, exist_ok=True)
+                    os.makedirs(ULT_SCENARIO_REP_DIR, exist_ok=True)
 
-    #             main(save_dir=ULT_SCENARIO_REP_DIR, damaged_dict=damaged_dict)
+                    print(len(damaged_dict), NUM_LINKS)
+                    main(save_dir=ULT_SCENARIO_REP_DIR, damaged_dict=damaged_dict, num_links=NUM_LINKS)
 
-    # get_tables(['Moderate', 'Strong'])
-    # get_sequence_graphs(['Moderate', 'Strong'])
-
-
-    # snames = ['Moderate_3', 'Moderate_5', 
-    # 'Strong_1', 'Strong_3', 'Strong_5']
+        get_tables(['Moderate', 'Strong'])
+        get_sequence_graphs(['Moderate', 'Strong'])
 
 
-    # broken_bridges = ['7']
-    # amount = 1
 
-    # i = 0
-    # j = 0
+    snames = ['Moderate_1', 'Moderate_2', 'Moderate_5', 'Strong_1', 'Strong_2', 'Strong_3', 'Strong_4', 'Strong_5']
 
-    # for sname in snames:
-    #     for broken in broken_bridges:
+    broken_bridges = ['5']
+    amount = 3
+    run_exps(snames, broken_bridges, amount)
 
-    #         try:
-    #             damaged_dict = read_scenario(sname=sname)
-    #         except:
-    #             pdb.set_trace()
+    broken_bridges = ['7']
+    amount = 5
+    run_exps(snames, broken_bridges, amount)
 
-    #         total_broken = len(damaged_dict)
-
-    #         if total_broken <= int(broken):
-    #             continue
-
-    #         NUM_LINKS = broken
-
-    #         for p in range(amount):
-    #             if sname.find('Moderate') >= 0:
-    #                 save_sname = 'Moderate'
-
-    #             else:
-    #                 save_sname = 'Strong'
-
-    #             SCENARIO_DIR = os.path.join(NETWORK_DIR, save_sname)
-    #             os.makedirs(SCENARIO_DIR, exist_ok=True)
-                
-    #             ULT_SCENARIO_DIR = os.path.join(SCENARIO_DIR, NUM_LINKS)
-    #             os.makedirs(ULT_SCENARIO_DIR, exist_ok=True)
-
-    #             repetitions = get_folders(ULT_SCENARIO_DIR)
-
-                
-    #             if len(repetitions) == 0:
-    #                 max_rep = -1
-    #             else:
-    #                 reps = [int(i) for i in repetitions]
-    #                 max_rep = max(reps)
-    #             rep = max_rep + 1
-
-
-    #             ULT_SCENARIO_REP_DIR = os.path.join(ULT_SCENARIO_DIR, str(rep))
-
-    #             os.makedirs(ULT_SCENARIO_REP_DIR, exist_ok=True)
-
-    #             main(save_dir=ULT_SCENARIO_REP_DIR, damaged_dict=damaged_dict)
-
-    # get_tables(['Moderate', 'Strong'])
-    # get_sequence_graphs(['Moderate', 'Strong'])
-
+    broken_bridges = ['10']
+    amount = 5
+    run_exps(snames, broken_bridges, amount)
