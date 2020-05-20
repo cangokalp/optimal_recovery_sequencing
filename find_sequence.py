@@ -1512,9 +1512,9 @@ if __name__ == '__main__':
 
     snames = ['Moderate_1', 'Moderate_2', 'Moderate_5', 'Strong_1', 'Strong_2', 'Strong_3', 'Strong_4', 'Strong_5']
 
-    # broken_bridges = ['5']
-    # amount = 10
-    # run_exps(snames, broken_bridges, amount)
+    broken_bridges = ['5']
+    amount = 10
+    run_exps(snames, broken_bridges, amount)
 
     broken_bridges = ['7']
     amount = 10
