@@ -53,10 +53,13 @@ class Node():
             self.after_eq_tstt = self.parent.after_eq_tstt
 
             self.realized = self.parent.realized + \
-                (self.tstt_before - self.before_eq_tstt) * self.days * (1-self.err_rate)
+                (self.tstt_before - self.before_eq_tstt) * self.days
 
             self.realized_u = self.parent.realized_u + \
                 (self.tstt_before - self.before_eq_tstt) * self.days * (1+self.err_rate)
+
+            self.realized_l = self.parent.realized_l + \
+                              (self.tstt_before - self.before_eq_tstt) * self.days * (1-self.err_rate)
 
             self.not_visited = set(self.damaged_dict.keys()
                                    ).difference(self.visited)
@@ -76,12 +79,15 @@ class Node():
                 self.realized = (self.tstt_before -
                                  self.before_eq_tstt) * self.days
                 self.realized_u = (self.tstt_before -
-                                 self.before_eq_tstt) * self.days
+                                 self.before_eq_tstt) * self.days * (1 + self.err_rate)
+                self.realized_l = (self.tstt_before -
+                                   self.before_eq_tstt) * self.days * (1 - self.err_rate)
                 self.days_past = self.days
 
             else:
                 self.realized = 0
                 self.realized_u = 0
+                self.realized_l = 0
                 self.days = 0
                 self.days_past = self.days
 
@@ -98,8 +104,8 @@ def get_successors_f(node, wb, bb):
     if node.level != 0:
         tail = node.path[-1]
         for a_link in not_visited:
-            if wb[a_link] * node.damaged_dict[tail] - bb[tail] * node.damaged_dict[a_link] > 0:
-                continue
+            # if wb[a_link] * node.damaged_dict[tail] - bb[tail] * node.damaged_dict[a_link] > 0:
+            #     continue
             successors.append(a_link)
     else:
         successors = not_visited
@@ -112,12 +118,15 @@ def get_successors_b(node, wb, bb):
     not_visited = node.not_visited
     successors = []
 
+    # if node.path == ['(13,12)']:
+    #     pdb.set_trace()
     if node.level != len(node.damaged_dict.keys()):
         tail = node.path[-1]
         for a_link in not_visited:
+
             # if wb[tail] * node.damaged_dict[a_link] - bb[a_link] * node.damaged_dict[tail] > 0:
-            if -wb[tail] * node.damaged_dict[a_link] + bb[a_link] * node.damaged_dict[tail] < 0:
-                continue
+            # if -wb[tail] * node.damaged_dict[a_link] + bb[a_link] * node.damaged_dict[tail] < 0:
+            #     continue
             successors.append(a_link)
     else:
         successors = not_visited
@@ -169,11 +178,11 @@ def expand_sequence_b(node, a_link, level, damaged_dict):
     return node, solved
 
 
-def orderlists(benefits, days, slack, reverse=True):
-
-    if sum(benefits) > slack:
-        benefits = np.array(benefits)
-        benefits = [min(slack, x) for x in benefits]
+def orderlists(benefits, days, slack=0, reverse=True):
+    #
+    # if sum(benefits) > slack:
+    #     benefits = np.array(benefits)
+    #     benefits = [min(slack, x) for x in benefits]
 
     bang4buck = np.array(benefits) / np.array(days)
 
@@ -190,8 +199,9 @@ def get_minlb(node, fwd_node, bwd_node, orderedb_benefits, orderedw_benefits, or
     slack = forward_tstt - backward_tstt
 
     if len(ordered_days) == 0:
-        node.lb = node.ub = fwd_node.realized + bwd_node.realized
-        new_feasible_path = [fwd_node.path + bwd_node.path[::-1]]
+        node.ub = fwd_node.realized_u + bwd_node.realized_u
+        node.lb = fwd_node.realized_l + bwd_node.realized_l
+        new_feasible_path = fwd_node.path + bwd_node.path[::-1]
 
         if node.lb < best_feasible_soln.g:
             best_feasible_soln.g = node.lb
@@ -200,11 +210,11 @@ def get_minlb(node, fwd_node, bwd_node, orderedb_benefits, orderedw_benefits, or
         return
 
     elif len(ordered_days) == 1:
-        node.lb = node.ub = fwd_node.realized + bwd_node.realized + \
+        node.lb = node.ub = fwd_node.realized_relax + bwd_node.realized_relax + \
             (fwd_node.tstt_after - node.before_eq_tstt) * ordered_days[0]
 
-        lo_link = set(node.damaged_dict.keys()).difference(set(fwd_node.path).union(set(bwd_node.path)))
-        new_feasible_path = fwd_node.path + [str(lo_link)] + bwd_node.path[::-1]
+        lo_link = list(set(node.damaged_dict.keys()).difference(set(fwd_node.path).union(set(bwd_node.path))))
+        new_feasible_path = fwd_node.path + [str(lo_link[0])] + bwd_node.path[::-1]
 
         if node.lb < best_feasible_soln.g:
             best_feasible_soln.g = node.lb
@@ -257,6 +267,7 @@ def get_minlb(node, fwd_node, bwd_node, orderedb_benefits, orderedw_benefits, or
     ###### FIND LB FROM FORWARDS #####
     if sum(b) > slack:
         # CHECK
+        last_iter = False
         for i in range(len(days_b)):
 
             if i == 0:
@@ -264,21 +275,35 @@ def get_minlb(node, fwd_node, bwd_node, orderedb_benefits, orderedw_benefits, or
                 fwd_days_b = deepcopy(days_b)
                 b_tstt = fwd_node.tstt_after
 
-            else:
-                slack_available = b_tstt - backward_tstt
-                benefit = min(fwd_b[0], slack_available)
-                b_tstt = b_tstt - benefit
+            if i>0:
+                # slack_available = b_tstt - backward_tstt
+                # benefit = min(fwd_b[0], slack_available)
+                b_tstt = b_tstt - fwd_b[0]
+
                 fwd_b = fwd_b[1:]
                 fwd_days_b = fwd_days_b[1:]
                 fwd_b, fwd_days_b = orderlists(
-                    fwd_b, fwd_days_b, slack_available)
+                    fwd_b, fwd_days_b, slack=0)
+
+            if b_tstt - fwd_b[0] < backward_tstt:
+                last_iter = True
+                future_slack = b_tstt - backward_tstt
+                req_days = future_slack/(fwd_b[0]/fwd_days_b[0])
+                fwd_days_b[0] = req_days
 
             if b_tstt == backward_tstt:
                 node.lb += sum(fwd_days_b[:]) * \
                     (backward_tstt - node.before_eq_tstt)
                 break
 
-            node.lb += max((b_tstt - node.before_eq_tstt), 0) * fwd_days_b[0]
+            if last_iter:
+                one = max((b_tstt - node.before_eq_tstt), 0) * fwd_days_b[0]
+                two = (backward_tstt - node.before_eq_tstt)*sum(fwd_days_b)
+                node.lb += min(one, two)
+                break
+
+            else:
+                node.lb += max((b_tstt - node.before_eq_tstt), 0) * fwd_days_b[0]
     else:
         # CHECK -
         fwd_days_b = deepcopy(days_b)
@@ -407,6 +432,10 @@ def set_bounds_bif(node, wb, bb, open_list_b, end_node, front_to_end=True, debug
 
         forward_tstt = node.tstt_after
         backward_tstt = other_end.tstt_before
+
+        # if node.path == ['(12,13)']:
+            # pdb.set_trace()
+
         get_minlb(node, node, other_end, orderedb_benefits,
                   orderedw_benefits, ordered_days, forward_tstt, backward_tstt, best_feasible_soln=best_feasible_soln)
 
@@ -436,8 +465,6 @@ def set_bounds_bib(node, wb, bb, open_list_f, start_node, front_to_end=True, bes
     minlb = np.inf
     maxub = -np.inf
 
-    # if node.path == ['(6,2)', '(2,6)', '(20,22)']:
-    #     pdb.set_trace()
 
     if len(eligible_backward_connects) == 0:
         eligible_backward_connects = [start_node]
@@ -462,6 +489,9 @@ def set_bounds_bib(node, wb, bb, open_list_f, start_node, front_to_end=True, bes
         forward_tstt = other_end.tstt_after
         backward_tstt = node.tstt_before
 
+        # if node.path ==['(20,22)', '(20,18)']:
+        #     pdb.set_trace()
+
         get_minlb(node, other_end, node, orderedb_benefits, orderedw_benefits,
                   ordered_days, forward_tstt, backward_tstt, backwards=True, best_feasible_soln=best_feasible_soln)
 
@@ -473,8 +503,9 @@ def set_bounds_bib(node, wb, bb, open_list_f, start_node, front_to_end=True, bes
     node.lb = minlb
     node.ub = maxub
 
-    # if node.lb >= node.ub:
-    #     pdb.set_trace()
+    if node.lb > node.ub:
+        pdb.set_trace()
+
 
 def expand_forward(damaged_dict, wb, bb, start_node, end_node, open_list_b, open_list_f, closed_list_b, closed_list_f,  best_ub, best_feasible_soln, num_tap_solved, front_to_end):
     debug = False
@@ -508,6 +539,7 @@ def expand_forward(damaged_dict, wb, bb, start_node, end_node, open_list_b, open
                     (current_node.tstt_after - current_node.before_eq_tstt) * damaged_dict[lo_link]
                 cur_path = current_node.path + \
                     [str(lo_link)] + other_end.path[::-1]
+
                 if cur_soln <= best_feasible_soln.g:
                     best_feasible_soln.g = cur_soln
                     best_feasible_soln.path = cur_path
@@ -650,6 +682,7 @@ def expand_backward(damaged_dict, wb, bb, start_node, end_node, open_list_b, ope
                 lo_link = lo_link.pop()
                 cur_soln = current_node.g + other_end.g + \
                     (other_end.tstt_after - other_end.before_eq_tstt) * damaged_dict[lo_link]
+
                 if cur_soln <= best_feasible_soln.g:
                     best_feasible_soln.g = cur_soln
                     best_feasible_soln.path = other_end.path + \
@@ -676,7 +709,7 @@ def expand_backward(damaged_dict, wb, bb, start_node, end_node, open_list_b, ope
         return open_list_b, closed_list_b,  best_ub, best_feasible_soln, num_tap_solved
 
 
-    if current_node.f > best_ub or current_node.f > best_feasible_soln.g:
+    if current_node.f > best_ub:
         # print('current node is pruned')
         return open_list_b, closed_list_b,  best_ub, best_feasible_soln, num_tap_solved
 
@@ -685,6 +718,8 @@ def expand_backward(damaged_dict, wb, bb, start_node, end_node, open_list_b, ope
 
     children = []
 
+    # if current_node.path == ['(13,12)']:
+    #     pdb.set_trace()
     for a_link in eligible_expansions:
 
         # Create new node
@@ -716,6 +751,7 @@ def expand_backward(damaged_dict, wb, bb, start_node, end_node, open_list_b, ope
 
 
         if child.lb==child.ub:
+            # pdb.set_trace()
             continue
             # pdb.set_trace()
             # and len(child.path) != len(child.damaged_dict):
@@ -836,27 +872,18 @@ def search(damaged_dict, wb, bb, start_node, end_node, best_ub):
                     current_node = item
                     kf = current_node.f
 
-        if max(kf, kb) >= best_feasible_soln.g or len(open_list_f)==0 or len(open_list_b)==0:
+        if max(kf, kb) >= best_ub or len(open_list_f)==0 or len(open_list_b)==0:
 
-            print('search ended')
-            print('search_dir: ', search_direction)
-            print('algo path: ', best_feasible_soln.path)
+            print('algo path: {}, objective: {} '.format(best_feasible_soln.path, best_feasible_soln.g))
+            # pdb.set_trace()
+
             if best_feasible_soln.path is None:
                 pdb.set_trace()
-                # if len(damaged_dict) - len(best_soln_node.path):
-                #     add_link = set(damaged_dict.keys()).difference(set(best_soln_node.visited))
-                #     best_path.append(add_link)
-                #     best_soln += (best_soln_node.tstt_after - best_soln_node.before_eq_tstt)*damaged_dict[add_link]
             return best_feasible_soln.path, best_feasible_soln.g, num_tap_solved
 
     if best_feasible_soln.path is None:
         print('{} is {}'.format('bestpath', 'none'))
         pdb.set_trace()
-
-        # if len(damaged_dict) - len(best_soln_node.path):
-        #     add_link = set(damaged_dict.keys()).difference(set(best_soln_node.visited))
-        #     best_path.append(add_link)
-        #     best_soln += (best_soln_node.tstt_after - best_soln_node.before_eq_tstt)*damaged_dict[add_link]
 
     if len(best_feasible_soln.path) != len(damaged_links):
         print('{} is not {}'.format('bestpath', 'full length'))
@@ -1245,10 +1272,13 @@ def main(save_dir, damaged_dict, num_links):
 
     print('Taking out: ', take_out)
 
-    for j in take_out:
-        damaged_links.remove(j)
-        del damaged_dict[j]
-
+    try:
+        for j in take_out:
+            damaged_links.remove(j)
+            del damaged_dict[j]
+    except:
+        print('neeext')
+        return
     num_damaged = len(damaged_dict)
 
     if num_damaged >= 8:
@@ -1304,7 +1334,8 @@ def main(save_dir, damaged_dict, num_links):
 
     ## Get optimal solution via brute force ###
 
-
+    #TEMP
+    # opt = False
     if opt:
         opt_obj, opt_soln, opt_elapsed, opt_num_tap = brute_force(
             net_after, after_eq_tstt, before_eq_tstt)
@@ -1339,50 +1370,49 @@ def main(save_dir, damaged_dict, num_links):
         algo_elapsed = load(fname + '_elapsed')
 
 
-    # print('Sequence found: {}, cost: {}, number of TAPs solved: {}, time elapsed: {}'.format(
-        # algo_path, algo_obj, algo_num_tap, algo_elapsed))
+    print('Sequence found: {}, cost: {}, number of TAPs solved: {}, time elapsed: {}'.format(
+        algo_path, algo_obj, algo_num_tap, algo_elapsed))
 
     # shutil.rmtree(net_after.save_dir)
 
 
     #algo with gap 1e-4
-    # r_algo_num_tap = best_benefit_taps + worst_benefit_taps
-    # best_bound = np.inf
+    r_algo_num_tap = best_benefit_taps + worst_benefit_taps
+    best_bound = np.inf
 
-    # fname = net_after.save_dir + '/r_algo_solution'
+    fname = net_after.save_dir + '/r_algo_solution'
 
-    # start_node.relax = True
-    # end_node.relax = True
+    start_node.relax = True
+    end_node.relax = True
 
-    # if not os.path.exists(fname + extension):
-    #     search_start = time.time()
-    #     r_algo_path, r_algo_obj, r_search_tap_solved = search(
-    #         damaged_dict, wb, bb, start_node, end_node, best_bound)
-
-
-    #     net_after, after_eq_tstt = state_after(damaged_links, save_dir)
-    #     net_after.damaged_dict = damaged_dict
-
-    #     first_net = deepcopy(net_after)
-    #     first_net.relax = False
-    #     r_algo_obj, _, _ = eval_sequence(
-    #             first_net, r_algo_path, after_eq_tstt, before_eq_tstt)
+    if not os.path.exists(fname + extension):
+        search_start = time.time()
+        r_algo_path, r_algo_obj, r_search_tap_solved = search(
+            damaged_dict, wb, bb, start_node, end_node, best_bound)
 
 
-    #     search_elapsed = time.time() - search_start
+        net_after, after_eq_tstt = state_after(damaged_links, save_dir)
+        net_after.damaged_dict = damaged_dict
 
-    #     r_algo_num_tap += search_tap_solved
-    #     r_algo_elapsed = search_elapsed + benefit_analysis_elapsed
+        first_net = deepcopy(net_after)
+        first_net.relax = False
+        r_algo_obj, _, _ = eval_sequence(
+                first_net, r_algo_path, after_eq_tstt, before_eq_tstt)
 
-    #     save(fname + '_obj', r_algo_obj)
-    #     save(fname + '_path', r_algo_path)
-    #     save(fname + '_num_tap', r_algo_num_tap)
-    #     save(fname + '_elapsed', r_algo_elapsed)
-    # else:
-    #     r_algo_obj = load(fname + '_obj')
-    #     r_algo_path = load(fname + '_path')
-    #     r_algo_num_tap = load(fname + '_num_tap')
-    #     r_algo_elapsed = load(fname + '_elapsed')
+        search_elapsed = time.time() - search_start
+
+        r_algo_num_tap += search_tap_solved
+        r_algo_elapsed = search_elapsed + benefit_analysis_elapsed
+
+        save(fname + '_obj', r_algo_obj)
+        save(fname + '_path', r_algo_path)
+        save(fname + '_num_tap', r_algo_num_tap)
+        save(fname + '_elapsed', r_algo_elapsed)
+    else:
+        r_algo_obj = load(fname + '_obj')
+        r_algo_path = load(fname + '_path')
+        r_algo_num_tap = load(fname + '_num_tap')
+        r_algo_elapsed = load(fname + '_elapsed')
 
 
 
@@ -1392,13 +1422,16 @@ def main(save_dir, damaged_dict, num_links):
     if opt:
         t.add_row(['OPTIMAL', opt_obj, opt_elapsed, opt_num_tap])
     t.add_row(['ALGORITHM', algo_obj, algo_elapsed, algo_num_tap])
-    # t.add_row(['ALGORITHM_low_gap', r_algo_obj, r_algo_elapsed, r_algo_num_tap])
+    t.add_row(['ALGORITHM_low_gap', r_algo_obj, r_algo_elapsed, r_algo_num_tap])
     t.add_row(['GREEDY', greedy_obj, greedy_elapsed, greedy_num_tap])
     t.add_row(['IMPORTANCE', importance_obj,
                importance_elapsed, importance_num_tap])
-    if abs(algo_obj-opt_obj) > 100:
-        pdb.set_trace()
     print(t)
+
+    #TEMP
+    if opt:
+        if abs(algo_obj-opt_obj) > 100:
+            pdb.set_trace()
 
     # colors = plt.cm.ocean(np.linspace(0, 0.7, len(algo_path)))
     # color_dict = {}
@@ -1468,10 +1501,11 @@ if __name__ == '__main__':
 
                 total_broken = len(damaged_dict)
 
+                #TEMP
                 # if total_broken != 10:
                 #     continue
 
-                if  int(broken) >= total_broken-2 :
+                if  int(broken) >= total_broken-2:
                     print('not this scenario')
                     continue
 
@@ -1510,17 +1544,22 @@ if __name__ == '__main__':
 
 
 
-    snames = ['Moderate_1', 'Moderate_2', 'Moderate_5', 'Strong_1', 'Strong_2', 'Strong_3', 'Strong_4', 'Strong_5']
+    snames = ['Moderate_2', 'Moderate_5'] #, 'Strong_1', 'Strong_2', 'Strong_3', 'Strong_4', 'Strong_5']
 
-    broken_bridges = ['5']
-    amount = 10
-    run_exps(snames, broken_bridges, amount)
+    # broken_bridges = ['5']
+    # amount = 3
+    # run_exps(snames, broken_bridges, amount)
 
+    snames = ['Moderate_2', 'Moderate_5']
     broken_bridges = ['7']
+    amount = 6
+    run_exps(snames, broken_bridges, amount)
+
+    snames = ['Strong_1', 'Strong_2', 'Strong_3', 'Strong_4', 'Strong_5']
+
+    broken_bridges = ['10']
     amount = 10
     run_exps(snames, broken_bridges, amount)
 
-
-    broken_bridges = ['9']
-    amount = 10
-    run_exps(snames, broken_bridges, amount)
+    get_tables(['Moderate', 'Strong'])
+    get_sequence_graphs(['Moderate', 'Strong'])
