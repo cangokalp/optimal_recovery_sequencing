@@ -141,10 +141,11 @@ def prep_dictionaries(method_dict):
 
 def result_table(reps, file_path, broken, sname):
 
-    filenames = ['algo_solution', 'min_seq',
+    filenames = ['algo_solution', 'r_algo_solution', 'min_seq',
                  'greedy_solution', 'importance_factor_bound']
 
     heuristic = {}
+    r_heuristic = {}
     greedy = {}
     brute_force = {}
     importance_factor = {}
@@ -152,14 +153,14 @@ def result_table(reps, file_path, broken, sname):
 
 
 
-    dict_list = [heuristic, brute_force, greedy, importance_factor]
+    dict_list = [heuristic, r_heuristic, brute_force, greedy, importance_factor]
     key_list = ['_obj', '_num_tap', '_elapsed']
 
     for method_dict in dict_list:
         prep_dictionaries(method_dict)
 
     if int(broken) >= 8:
-        filenames[1] = 'algo_solution'
+        filenames[2] = 'algo_solution'
 
     for rep in range(reps+1):
         for method_dict in dict_list:
@@ -261,7 +262,7 @@ def result_table(reps, file_path, broken, sname):
 
     plt.ylabel('Normalized Metric Value')
     plt.xticks([(r + barWidth) for r in range(len(obj_means))],
-               ['ProposedMethod', 'GreedyMethod', 'ImportanceFactor'])
+               ['ProposedMethod', 'RelaxMethod', 'GreedyMethod', 'ImportanceFactor'])
     plt.title('Performance Comparison - ' + sname, fontsize=7)
     if broken != 10:
         txt = "# Broken Links: " + \
@@ -278,7 +279,7 @@ def result_table(reps, file_path, broken, sname):
 
     columns = ('Avg Rel Gap', 'Delta', 'Avg Tap Solved',
                'Delta', 'Avg Elapsed(s)', 'Delta')
-    rows = ['PM', 'GM', 'IF']
+    rows = ['PM', 'RM', 'GM', 'IF']
 
     plt.close()
 
