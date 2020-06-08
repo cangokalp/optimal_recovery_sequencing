@@ -1,6 +1,6 @@
-Nodes, arcs, zones, thrunode: 24 76 24 0
+Warning: Ignoring unknown metadata tag ORIGINAL HEADER in  parameters file current_net.tntpNodes, arcs, zones, thrunode: 933 2950 387 0
 Distance factor, toll factor: 0.000000 0.000000
-24 nodes, 76 arcs, and 24 zones
+933 nodes, 2950 arcs, and 387 zones
 File read and memory allocated.
 Forward and reverse star lists generated.
 Starting Algorithm B...
@@ -10,12 +10,13 @@ Initialed flows
 Read matrix 0
 Creating batch 0
 Created batch 0
-Initialization done in 0.000 s.
-Iteration 1: gap 0.051734326705040, obj 4411910.0222476, time 0.001, 48 shifts
-Iteration 2: gap 0.015734605477740, obj 4273882.50594295, time 0.001, 73 shifts
-Iteration 3: gap 0.003591024634098, obj 4237424.53002838, time 0.002, 106 shifts
-Iteration 4: gap 0.000628935597837, obj 4231956.53060478, time 0.002, 146 shifts
-Iteration 5: gap 0.000078320142753, obj 4231352.56176012, time 0.003, 206 shifts
-Iteration 6: gap 0.000013211901881, obj 4231335.85070199, time 0.005, 388 shifts
-Iteration 7: gap 0.000002432226671, obj 4231335.30862316, time 0.007, 563 shifts
-Iteration 8: gap 0.000000507118059, obj 4231335.28821963, time 0.008, 724 shifts
+Initialization done in 0.136 s.
+Iteration 1: gap 0.007446059203396, obj 16846509.1312658, time 0.075, 732 shifts
+Iteration 2: gap 0.001922227412928, obj 16795014.4017592, time 0.130, 939 shifts
+Iteration 3: gap 0.000426688745609, obj 16782330.1398803, time 0.182, 1241 shifts
+Iteration 4: gap 0.000137650931836, obj 16779089.6146239, time 0.234, 1645 shifts
+Iteration 5: gap 0.000041029522940, obj 16778546.215498, time 0.283, 2047 shifts
+Iteration 6: gap 0.000012333065959, obj 16778376.5525078, time 0.343, 2561 shifts
+Iteration 7: gap 0.000005070165416, obj 16778343.2788959, time 0.394, 3009 shifts
+Iteration 8: gap 0.000003018572935, obj 16778333.7597216, time 0.445, 3450 shifts
+Iteration 9: gap 0.000000960673452, obj 16778331.3620999, time 0.500, 3853 shifts

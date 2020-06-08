@@ -20,14 +20,23 @@ import caffeine
 
 SEED = 9
 
-SNAME = 'Moderate_5'
-NETWORK = 'SiouxFalls'
-NETFILE = "SiouxFalls/SiouxFalls_net.tntp"
-TRIPFILE = "SiouxFalls/SiouxFalls_trips.tntp"
+
+
+FOLDER = "TransportationNetworks"
+MAX_DAYS = 180
+MIN_DAYS = 21
+net_name = 'Chicago-Sketch'
+NETWORK = os.path.join(FOLDER, net_name)
+NETFILE = os.path.join(NETWORK, net_name + "_net.tntp")
+TRIPFILE = os.path.join(NETWORK, net_name + "_trips.tntp")
+
+# SNAME = 'Moderate_5'
+# NETWORK = 'SiouxFalls'
+# NETFILE = "SiouxFalls/SiouxFalls_net.tntp"
+# TRIPFILE = "SiouxFalls/SiouxFalls_trips.tntp"
+
 SAVED_FOLDER_NAME = "saved"
-
 PROJECT_ROOT_DIR = "."
-
 SAVED_DIR = os.path.join(PROJECT_ROOT_DIR, SAVED_FOLDER_NAME)
 os.makedirs(SAVED_DIR, exist_ok=True)
 
@@ -109,7 +118,9 @@ def solve_UE(net=None, relax=False):
 
     # modify the net.txt file to send to c code
     
-    shutil.copy('SiouxFalls/SiouxFalls_net.tntp', 'current_net.tntp')
+    # shutil.copy('SiouxFalls/SiouxFalls_net.tntp', 'current_net.tntp')
+
+    shutil.copy(NETFILE, 'current_net.tntp')
     networkFileName = "current_net.tntp"
 
     df = pd.read_csv(networkFileName, 'r+', delimiter='\t')
@@ -126,9 +137,9 @@ def solve_UE(net=None, relax=False):
     df.to_csv('current_net.tntp', index=False, sep="\t")
     # send it to c code
     if relax:
-        args = ("tap-b_relax/bin/tap current_net.tntp SiouxFalls/SiouxFalls_trips.tntp", "-c")
+        args = ("tap-b_relax/bin/tap current_net.tntp " + TRIPFILE + ' 6', "-c")
     else:
-        args = ("tap-b/bin/tap current_net.tntp SiouxFalls/SiouxFalls_trips.tntp", "-c")
+        args = ("tap-b/bin/tap current_net.tntp " + TRIPFILE + ' 6', "-c")
     popen = subprocess.Popen(args, stdout=subprocess.PIPE, shell=True)
     popen.wait()
     output = popen.stdout.read()
