@@ -14,6 +14,8 @@ memory = {}
 
 
 
+
+
 class Node():
     """A node class for bi-directional search for pathfinding"""
 
@@ -104,8 +106,8 @@ def get_successors_f(node, wb, bb):
     if node.level != 0:
         tail = node.path[-1]
         for a_link in not_visited:
-            # if wb[a_link] * node.damaged_dict[tail] - bb[tail] * node.damaged_dict[a_link] > 0:
-            #     continue
+            if wb[a_link] * node.damaged_dict[tail] - bb[tail] * node.damaged_dict[a_link] > 0:
+                continue
             successors.append(a_link)
     else:
         successors = not_visited
@@ -125,8 +127,8 @@ def get_successors_b(node, wb, bb):
         for a_link in not_visited:
 
             # if wb[tail] * node.damaged_dict[a_link] - bb[a_link] * node.damaged_dict[tail] > 0:
-            # if -wb[tail] * node.damaged_dict[a_link] + bb[a_link] * node.damaged_dict[tail] < 0:
-            #     continue
+            if -wb[tail] * node.damaged_dict[a_link] + bb[a_link] * node.damaged_dict[tail] < 0:
+                continue
             successors.append(a_link)
     else:
         successors = not_visited
@@ -964,8 +966,11 @@ def state_after(damaged_links, save_dir):
     fname = save_dir + '/net_after'
     if not os.path.exists(fname + extension):
         net_after = create_network(NETFILE, TRIPFILE)
-        for link in damaged_links:
-            net_after.link[link].remove()
+        try:
+            for link in damaged_links:
+                net_after.link[link].remove()
+        except:
+            pdb.set_trace()
         net_after.not_fixed = set(damaged_links)
 
         after_eq_tstt = solve_UE(net=net_after)
@@ -1266,29 +1271,9 @@ def local_search(greedy_path):
     pass
 
 
-def main(save_dir, damaged_dict, num_links):
-    opt = True
-
-    damaged_links = [link for link in damaged_dict.keys()]
-
-    take_out = np.random.choice(damaged_links, len(
-        damaged_links) - int(num_links), replace=False)
-
-    save(save_dir + '/broken_links', take_out)
-
-    print('Taking out: ', take_out)
-
-    try:
-        for j in take_out:
-            damaged_links.remove(j)
-            del damaged_dict[j]
-    except:
-        print('neeext')
-        return
-    num_damaged = len(damaged_dict)
-
-    if num_damaged >= 8:
-        opt = False
+def main(save_dir, damaged_dict, opt=False):
+    damaged_links = damaged_dict.keys()
+    num_damaged = len(damaged_links)
 
     net_after, after_eq_tstt = state_after(damaged_links, save_dir)
     net_before, before_eq_tstt = state_before(damaged_links, save_dir)
@@ -1483,11 +1468,10 @@ if __name__ == '__main__':
     # parser.add_argument('')
     # args = parser.parse_args()
 
-    def rand_gen(reps, num_broken, net_name):
+    def rand_gen(reps, num_broken, net_name, opt=True):
 
-        NETWORK = net_name
-        NETFILE = os.path.join(NETWORK, NETWORK + "_net.tntp")
-        TRIPFILE = os.path.join(NETWORK, NETWORK + "_trips.tntp")
+        
+        
         SAVED_FOLDER_NAME = "saved"
 
         PROJECT_ROOT_DIR = "."
@@ -1498,85 +1482,51 @@ if __name__ == '__main__':
         NETWORK_DIR = os.path.join(SAVED_DIR, NETWORK)
         os.makedirs(NETWORK_DIR, exist_ok=True)
 
+        if num_broken >= 8:
+            opt = False
+
+        for rep in range(reps):
+            net = create_network(NETFILE, TRIPFILE)
+            all_links = [lnk for lnk in net.link]
+            damaged_links = np.random.choice(all_links, num_broken, replace=False)
+            repair_days = [net.link[a_link].length for a_link in damaged_links]
+
+            min_rd = min(repair_days)
+            max_rd = max(repair_days)
+            med_rd = np.median(repair_days)
+            damaged_dict = {}
+
+            for a_link in damaged_links:
+                repair_days = net.link[a_link].length
+                if repair_days > med_rd :
+                    repair_days += (max_rd - repair_days)*0.3
+                y = ((repair_days - min_rd) / (min_rd - max_rd) * (MIN_DAYS - MAX_DAYS) + MIN_DAYS)
+                mu = y  
+                std = y*0.3
+                damaged_dict[a_link] = np.random.normal(mu, std, 1)[0]
+
+
+            ULT_SCENARIO_DIR = os.path.join(NETWORK_DIR, str(num_broken))
+            os.makedirs(ULT_SCENARIO_DIR, exist_ok=True)
+
+            repetitions = get_folders(ULT_SCENARIO_DIR)
+
+
+            if len(repetitions) == 0:
+                max_rep = -1
+            else:
+                num_scenario = [int(i) for i in repetitions]
+                max_rep = max(num_scenario)
+            cur_scnario_num = max_rep + 1
+
+
+            ULT_SCENARIO_REP_DIR = os.path.join(ULT_SCENARIO_DIR, str(cur_scnario_num))
+
+            os.makedirs(ULT_SCENARIO_REP_DIR, exist_ok=True)
+
+            main(ULT_SCENARIO_REP_DIR, damaged_dict, opt)
+
+    rand_gen(20, 20, 'Chicago-Sketch')
+
         
         
-
-
-
-    # def run_exps(snames, broken_bridges, amount):
-    #     i = 0
-    #     j = 0
-
-    #     for sname in snames:
-
-    #         if sname.find('Moderate') >= 0:
-    #             save_sname = 'Moderate'
-    #         else:
-    #             save_sname = 'Strong'
-
-    #         for broken in broken_bridges:
-
-    #             try:
-    #                 damaged_dict = read_scenario(sname=sname)
-    #             except:
-    #                 pdb.set_trace()
-
-
-    #             total_broken = len(damaged_dict)
-    #             #TEMP
-    #             # if total_broken != 10:
-    #             #     continue
-
-    #             if not int(broken) <= total_broken-2:
-    #                 print('not this scenario')
-    #                 continue
-
-    #             NUM_LINKS = broken
-
-    #             for p in range(amount):
-
-    #                 damaged_dict = read_scenario(sname=sname)
-
-    #                 SCENARIO_DIR = os.path.join(NETWORK_DIR, save_sname)
-    #                 os.makedirs(SCENARIO_DIR, exist_ok=True)
-
-    #                 ULT_SCENARIO_DIR = os.path.join(SCENARIO_DIR, NUM_LINKS)
-    #                 os.makedirs(ULT_SCENARIO_DIR, exist_ok=True)
-
-    #                 repetitions = get_folders(ULT_SCENARIO_DIR)
-
-
-    #                 if len(repetitions) == 0:
-    #                     max_rep = -1
-    #                 else:
-    #                     reps = [int(i) for i in repetitions]
-    #                     max_rep = max(reps)
-    #                 rep = max_rep + 1
-
-
-    #                 ULT_SCENARIO_REP_DIR = os.path.join(ULT_SCENARIO_DIR, str(rep))
-
-    #                 os.makedirs(ULT_SCENARIO_REP_DIR, exist_ok=True)
-
-    #                 print(len(damaged_dict), NUM_LINKS)
-    #                 main(save_dir=ULT_SCENARIO_REP_DIR, damaged_dict=damaged_dict, num_links=NUM_LINKS)
-
-
-    # snames = ['Moderate_1', 'Moderate_2', 'Moderate_3', 'Moderate_4', 'Moderate_5']
-    # broken_bridges = ['5']
-    # amount = 10
-    # run_exps(snames, broken_bridges, amount)
-
-
-    # snames = ['Strong_1', 'Strong_2', 'Strong_3', 'Strong_4', 'Strong_5']
-
-    # broken_bridges = ['5']
-    # amount = 10
-    # run_exps(snames, broken_bridges, amount)
-
-    # broken_bridges = ['10']
-    # amount = 10
-    # run_exps(snames, broken_bridges, amount)
-
-    # get_tables(['Moderate', 'Strong'])
-    # get_sequence_graphs(['Moderate', 'Strong'])
