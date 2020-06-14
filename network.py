@@ -1157,11 +1157,12 @@ class Network:
                     if len(data) % 3 != 0 and len(data) % 4 != 0:
                         print("Demand data line not formatted properly:\n %s" % line)
                         raise utils.BadFileFormatException
-
-                    for i in range(int(len(data) // 3)):
-                        destination = int(data[i * 3])
-                        check = data[i * 3 + 1]
-                        demand = data[i * 3 + 2]
+                    divme = 3
+                       
+                    for i in range(int(len(data) // divme)):
+                        destination = int(data[i * divme])
+                        check = data[i * divme + 1]
+                        demand = data[i * divme + 2]
                         demand = float(demand[:len(demand) - 1])
                         if check != ':':
                             print(
