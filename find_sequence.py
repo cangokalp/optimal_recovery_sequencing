@@ -42,8 +42,12 @@ parser.add_argument('-b', '--num_broken', type=int,
                     help='number of broken bridges')
 parser.add_argument('-a', '--approx', type=bool,
                     help='approximation enabled for speed', default=False)
+parser.add_argument('-s', '--beamsearch', type=bool,
+                    help='beam search enabled for speed', default=False)
+parser.add_argument('-k', '--keep top k in beam search', type=bool,
+                    help='beam search parameter', default=10)
 parser.add_argument('-r', '--reps', type=int,
-                    help='number of scenarios with the given parameters')
+                    help='number of scenarios with the given parameters', default=1)
 
 args = parser.parse_args()
 
@@ -51,6 +55,7 @@ SEED = 9
 FOLDER = "TransportationNetworks"
 MAX_DAYS = 180
 MIN_DAYS = 21
+
 
 
 def solve_UE(net=None, relax=False):
@@ -230,11 +235,10 @@ def net_update(net):
 
     return tstt
 
-
 class Node():
     """A node class for bi-directional search for pathfinding"""
 
-    def __init__(self, visited=None, link_id=None, parent=None, net=None, tstt_after=None, tstt_before=None, level=None, forward=True, relax=False):
+    def __init__(self, visited=None, link_id=None, parent=None, tstt_after=None, tstt_before=None, level=None, forward=True, relax=False, not_fixed=None):
 
         self.relax = relax
         self.forward = forward
@@ -242,7 +246,6 @@ class Node():
         self.level = level
         self.link_id = link_id
         self.path = []
-        self.net = net
         self.tstt_before = tstt_before
         self.tstt_after = tstt_after
         self.g = 0
@@ -284,12 +287,12 @@ class Node():
 
             self.forward = self.parent.forward
             if self.forward:
-                self.net.not_fixed = self.not_visited
-                self.net.fixed = self.visited
+                self.not_fixed = self.not_visited
+                self.fixed = self.visited
 
             else:
-                self.net.not_fixed = self.visited
-                self.net.fixed = self.not_visited
+                self.not_fixed = self.visited
+                self.fixed = self.not_visited
 
         else:
             if self.link_id is not None:
@@ -310,7 +313,7 @@ class Node():
                 self.days_past = self.days
 
     def __eq__(self, other):
-        return self.net.fixed == other.net.fixed
+        return self.fixed == other.fixed
 
 
 def get_successors_f(node):
@@ -356,22 +359,33 @@ def expand_sequence_f(node, a_link, level):
     """given a link and a node, it expands the sequence"""
     solved = 0
     tstt_before = node.tstt_after
-    net = deepcopy(node.net)
-    net.link[a_link].add_link_back()
-    added = [a_link]
-    net.not_fixed = set(net.not_fixed).difference(set(added))
+    
+    net = create_network(NETFILE, TRIPFILE)
+
+    net.not_fixed = set(node.not_fixed).difference(set([a_link]))
+
+    for j in set(net.not_fixed):
+        net.link[j].remove()
+
+    # net = deepcopy(node.net)
+    # net.link[a_link].add_link_back()
+    # added = [a_link]
+    # net.not_fixed = set(net.not_fixed).difference(set(added))
 
     if frozenset(net.not_fixed) in memory.keys():
-        net, tstt_after = memory[frozenset(net.not_fixed)]
+        tstt_after = memory[frozenset(net.not_fixed)]
 
     else:
         tstt_after = solve_UE(net=net, relax=node.relax)
-        memory[frozenset(net.not_fixed)] = (net, tstt_after)
+        memory[frozenset(net.not_fixed)] = (tstt_after)
         solved = 1
 
-    node = Node(link_id=a_link, parent=node, net=net, tstt_after=tstt_after,
+
+    node = Node(link_id=a_link, parent=node, tstt_after=tstt_after,
                 tstt_before=tstt_before, level=level, relax=node.relax)
 
+
+    del net
     return node, solved
 
 
@@ -379,20 +393,30 @@ def expand_sequence_b(node, a_link, level):
     """given a link and a node, it expands the sequence"""
     solved = 0
     tstt_after = node.tstt_before
-    net = deepcopy(node.net)
-    net.link[a_link].remove()
-    removed = [a_link]
-    net.not_fixed = net.not_fixed.union(set(removed))
+
+    net = create_network(NETFILE, TRIPFILE)
+
+    net.not_fixed = node.not_fixed.union(set([a_link]))
+
+    for j in set(net.not_fixed):
+        net.link[j].remove()
+
+    # net = deepcopy(node.net)
+    # net.link[a_link].remove()
+    # removed = [a_link]
+    # net.not_fixed = net.not_fixed.union(set(removed))
 
     if frozenset(net.not_fixed) in memory.keys():
-        net, tstt_before = memory[frozenset(net.not_fixed)]
+        tstt_before = memory[frozenset(net.not_fixed)]
     else:
         tstt_before = solve_UE(net=net, relax=node.relax)
-        memory[frozenset(net.not_fixed)] = (net, tstt_before)
+        memory[frozenset(net.not_fixed)] = tstt_before
         solved = 1
 
-    node = Node(link_id=a_link, parent=node, net=net, tstt_after=tstt_after,
+    node = Node(link_id=a_link, parent=node, tstt_after=tstt_after,
                 tstt_before=tstt_before, level=level, relax=node.relax)
+
+    del net
     return node, solved
 
 
@@ -784,11 +808,11 @@ def expand_forward(start_node, end_node, open_list_b, open_list_f, closed_list_b
     # Found the goal
     if current_node == end_node:
         # print('at the end_node')
-        return open_list_f, closed_list_f, best_ub, best_feasible_soln, num_tap_solved
+        return open_list_f, closed_list_f, closed_list_f_g, best_ub, best_feasible_soln, num_tap_solved
 
     if current_node.f > best_feasible_soln.g or current_node.f > best_ub:
         # print('current node is pruned')
-        return open_list_f, closed_list_f, best_ub, best_feasible_soln, num_tap_solved
+        return open_list_f, closed_list_f, closed_list_f_g, best_ub, best_feasible_soln, num_tap_solved
 
     # Generate children
     eligible_expansions = get_successors_f(current_node)
@@ -938,11 +962,11 @@ def expand_backward(start_node, end_node, open_list_b, open_list_f, closed_list_
     # Found the goal
     if current_node == start_node:
         # print('at the start node')
-        return open_list_b, closed_list_b,  best_ub, best_feasible_soln, num_tap_solved
+        return open_list_b, closed_list_b, closed_list_b_g, best_ub, best_feasible_soln, num_tap_solved
 
     if current_node.f > best_ub:
         # print('current node is pruned')
-        return open_list_b, closed_list_b,  best_ub, best_feasible_soln, num_tap_solved
+        return open_list_b, closed_list_b, closed_list_b_g, best_ub, best_feasible_soln, num_tap_solved
 
     # Generate children
     eligible_expansions = get_successors_b(current_node)
@@ -1033,6 +1057,34 @@ def expand_backward(start_node, end_node, open_list_b, open_list_f, closed_list_
 
     return open_list_b, closed_list_b, closed_list_b_g, best_ub, best_feasible_soln, num_tap_solved
 
+def purge(open_list_b, open_list_f, closed_list_b, closed_list_b_g, closed_list_f, closed_list_f_g):
+
+    max_level_f = open_list_f[-1].level
+    max_level_b = open_list_b[-1].level
+
+    k = 20
+    keep_f =[]
+    if max_level_f > 2:
+        values_ofn = np.ones((k, max_level_f - 2)) * np.inf
+        indices_ofn = np.ones((k, max_level_f - 2)) * np.inf
+
+        for idx, ofn in enumerate(open_list_f):
+            cur_lev = ofn.level
+            if cur_lev > 2:
+                try:
+                    cur_max = np.max(values_ofn[:, cur_lev-3])
+                    max_idx = np.argmax(values_ofn[:, cur_lev-3])
+                except:
+                    pdb.set_trace()
+
+                if ofn.f < cur_max:
+                    indices_ofn[max_idx, cur_lev-3] = idx
+                    values_ofn[max_idx, cur_lev-3] = ofn.f
+            else:
+                keep_f.append(idx)
+
+    pdb.set_trace()
+
 
 def search(start_node, end_node, best_ub):
     """Returns the best order to visit the set of nodes"""
@@ -1089,9 +1141,10 @@ def search(start_node, end_node, best_ub):
             open_list_b, closed_list_b, closed_list_b_g, best_ub, best_feasible_soln, num_tap_solved = expand_backward(
                 start_node, end_node, open_list_b, open_list_f, closed_list_b, closed_list_f, closed_list_b_g, best_ub, best_feasible_soln, num_tap_solved, front_to_end=False)
 
-        if iter_count % 50 == 0:
+        if iter_count % 25 == 0:
             print('length of forward open list: ', len(open_list_f))
             print('length of backwards open list: ', len(open_list_b))
+            # open_list_b, open_list_f, closed_list_b, closed_list_b_g, closed_list_f, closed_list_f_g = purge(open_list_b, open_list_f, closed_list_b, closed_list_b_g, closed_list_f, closed_list_f_g)
 
         # check termination
         if len(open_list_b) > 0:
@@ -1145,7 +1198,7 @@ def worst_benefit(before, links_to_remove, before_eq_tstt):
             test_net.not_fixed = set(not_fixed)
 
             tstt = solve_UE(net=test_net)
-            memory[frozenset(test_net.not_fixed)] = (test_net, tstt)
+            memory[frozenset(test_net.not_fixed)] = tstt
 
             wb[link] = tstt - before_eq_tstt
             # print(tstt)
@@ -1176,7 +1229,7 @@ def best_benefit(after, links_to_remove, after_eq_tstt):
             not_fixed = set(to_visit).difference(set(added))
             test_net.not_fixed = set(not_fixed)
             tstt_after = solve_UE(net=test_net)
-            memory[frozenset(test_net.not_fixed)] = (test_net, tstt_after)
+            memory[frozenset(test_net.not_fixed)] = tstt_after
 
             # seq_list.append(Node(link_id=link, parent=None, net=test_net, tstt_after=tstt_after,
             # tstt_before=after_eq_tstt, level=1, damaged_dict=damaged_dict))
@@ -1206,7 +1259,7 @@ def state_after(damaged_links, save_dir):
         net_after.not_fixed = set(damaged_links)
 
         after_eq_tstt = solve_UE(net=net_after)
-        memory[frozenset(net_after.not_fixed)] = (net_after, after_eq_tstt)
+        memory[frozenset(net_after.not_fixed)] = after_eq_tstt
 
         save(fname, net_after)
         save(fname + '_tstt', after_eq_tstt)
@@ -1226,7 +1279,7 @@ def state_before(damaged_links, save_dir):
         net_before.not_fixed = set([])
 
         before_eq_tstt = solve_UE(net=net_before)
-        memory[frozenset(net_before.not_fixed)] = (net_before, before_eq_tstt)
+        memory[frozenset(net_before.not_fixed)] = before_eq_tstt
 
         save(fname, net_before)
         save(fname + '_tstt', before_eq_tstt)
@@ -1260,7 +1313,7 @@ def eval_state(state, after, damaged_links):
     test_net.not_fixed = set(not_fixed)
 
     tstt_after = solve_UE(net=test_net)
-    memory[frozenset(test_net.not_fixed)] = (test_net, tstt_after)
+    memory[frozenset(test_net.not_fixed)] = tstt_after
 
     return tstt_after
 
@@ -1627,6 +1680,7 @@ if __name__ == '__main__':
     num_broken = args.num_broken
     approx = args.approx
     reps = args.reps
+    opt = True
 
     NETWORK = os.path.join(FOLDER, net_name)
     NETFILE = os.path.join(NETWORK, net_name + "_net.tntp")
@@ -1711,8 +1765,7 @@ if __name__ == '__main__':
             print('approx obj: {}, approx path: {}'.format(
                 approx_obj, approx_soln))
 
-        start_node = Node(tstt_after=after_eq_tstt,
-                          net=net_after)
+        start_node = Node(tstt_after=after_eq_tstt)
         start_node.before_eq_tstt = before_eq_tstt
         start_node.after_eq_tstt = after_eq_tstt
         start_node.realized = 0
@@ -1720,17 +1773,24 @@ if __name__ == '__main__':
         start_node.level = 0
         start_node.visited, start_node.not_visited = set(
             []), set(damaged_links)
-        start_node.net.fixed, start_node.net.not_fixed = set(
-            []), set(damaged_links)
+        start_node.fixed, start_node.not_fixed = set([]), set(damaged_links)
+        # start_node.net.fixed, start_node.net.not_fixed = set(
+        #     []), set(damaged_links)
 
-        end_node = Node(tstt_before=before_eq_tstt,
-                        net=net_before, forward=False)
+
+        end_node = Node(tstt_before=before_eq_tstt, forward=False)
         end_node.before_eq_tstt = before_eq_tstt
         end_node.after_eq_tstt = after_eq_tstt
         end_node.level = len(damaged_links)
+        
         end_node.visited, end_node.not_visited = set([]), set(damaged_links)
-        end_node.net.fixed, end_node.net.not_fixed = set(
+        
+        end_node.fixed, end_node.not_fixed = set(
             damaged_links), set([])
+        
+        # end_node.net.fixed, end_node.net.not_fixed = set(
+            # damaged_links), set([])
+        
         benefit_analysis_elapsed = time.time() - benefit_analysis_st
 
         ### Get greedy solution ###
@@ -1816,11 +1876,11 @@ if __name__ == '__main__':
             r_algo_elapsed = load(fname + '_elapsed')
 
         t = PrettyTable()
-        t.title = 'SiouxFalls' + ' with ' + num_links + ' broken bridges'
+        t.title = 'SiouxFalls' + ' with ' + str(num_broken) + ' broken bridges'
         t.field_names = ['Method', 'Objective', 'Run Time', '# TAP']
         if opt:
             t.add_row(['OPTIMAL', opt_obj, opt_elapsed, opt_num_tap])
-        if is_approx:
+        if approx:
             t.add_row(['APPROX', approx_obj, approx_elapsed, approx_num_tap])
         t.add_row(['ALGORITHM', algo_obj, algo_elapsed, algo_num_tap])
         t.add_row(['ALGORITHM_low_gap', r_algo_obj,
