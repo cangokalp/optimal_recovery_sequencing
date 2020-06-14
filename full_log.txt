@@ -1,3 +1,5 @@
+Threads were not defined, we will define the num of threads based on the number of available cores.
+Number of available cores: 8
 Warning: Ignoring unknown metadata tag ORIGINAL HEADER in  parameters file current_net.tntpNodes, arcs, zones, thrunode: 24 76 24 0
 Distance factor, toll factor: 0.000000 0.000000
 24 nodes, 76 arcs, and 24 zones
@@ -11,39 +13,17 @@ Read matrix 0
 Creating batch 0
 Created batch 0
 Initialization done in 0.000 s.
-Iteration 1: gap 0.128106088493432, obj 30776363.7055351, time 0.001, 43 shifts
-Iteration 2: gap 0.060394253836958, obj 28835445.8457995, time 0.001, 62 shifts
-Iteration 3: gap 0.047383037978350, obj 28519278.9945329, time 0.002, 73 shifts
-Iteration 4: gap 0.014801072508483, obj 27994925.8363243, time 0.002, 85 shifts
-Iteration 5: gap 0.013229815323284, obj 27800684.7271047, time 0.003, 108 shifts
-Iteration 6: gap 0.028101879207813, obj 27724836.8326149, time 0.004, 122 shifts
-Iteration 7: gap 0.009081124582850, obj 27584033.5650751, time 0.004, 125 shifts
-Iteration 8: gap 0.022847369722504, obj 27538474.3689108, time 0.005, 132 shifts
-Iteration 9: gap 0.006856588791940, obj 27435182.5951416, time 0.005, 136 shifts
-Iteration 10: gap 0.018314581616422, obj 27402027.0204846, time 0.006, 148 shifts
-Iteration 11: gap 0.005019891387009, obj 27326639.2315758, time 0.006, 155 shifts
-Iteration 12: gap 0.015182716044009, obj 27302721.8921901, time 0.007, 167 shifts
-Iteration 13: gap 0.003872093389302, obj 27244498.4178853, time 0.007, 172 shifts
-Iteration 14: gap 0.012990146133888, obj 27223187.051859, time 0.008, 196 shifts
-Iteration 15: gap 0.002892952565722, obj 27176515.102575, time 0.008, 202 shifts
-Iteration 16: gap 0.011047339913592, obj 27161839.8572407, time 0.008, 214 shifts
-Iteration 17: gap 0.001877656883581, obj 27081915.1449361, time 0.009, 228 shifts
-Iteration 18: gap 0.009251388781324, obj 27066795.557319, time 0.010, 253 shifts
-Iteration 19: gap 0.001431456704731, obj 27036792.2625774, time 0.010, 259 shifts
-Iteration 20: gap 0.008620669685549, obj 27022457.0724814, time 0.011, 289 shifts
-Iteration 21: gap 0.000922666553629, obj 26975901.9574702, time 0.011, 296 shifts
-Iteration 22: gap 0.007534856997137, obj 26963585.3246135, time 0.012, 321 shifts
-Iteration 23: gap 0.000553257239425, obj 26936728.6648215, time 0.012, 329 shifts
-Iteration 24: gap 0.000541305070580, obj 26917539.3982257, time 0.012, 364 shifts
-Iteration 25: gap 0.006661818430403, obj 26906487.5670799, time 0.013, 401 shifts
-Iteration 26: gap 0.000195883931111, obj 26898133.6207646, time 0.013, 403 shifts
-Iteration 27: gap 0.000053942628140, obj 26892249.401631, time 0.014, 453 shifts
-Iteration 28: gap 0.000017129527911, obj 26892045.4815147, time 0.015, 520 shifts
-Iteration 29: gap 0.000092384711851, obj 26891922.029131, time 0.016, 555 shifts
-Iteration 30: gap 0.000015218045929, obj 26891898.9431912, time 0.016, 571 shifts
-Iteration 31: gap 0.000009652100609, obj 26891837.3858826, time 0.018, 651 shifts
-Iteration 32: gap 0.000008233748698, obj 26891821.9993962, time 0.018, 677 shifts
-Iteration 33: gap 0.000002306703387, obj 26891820.7019696, time 0.019, 720 shifts
-Iteration 34: gap 0.000003009748604, obj 26891817.0715486, time 0.019, 762 shifts
-Iteration 35: gap 0.000001384307926, obj 26891813.9918117, time 0.020, 825 shifts
-Iteration 36: gap 0.000000907212005, obj 26891813.8711316, time 0.021, 855 shifts
+Iteration 1: gap 0.061110961343338, obj 4378126.03201595, time 0.001, 48 shifts
+Iteration 2: gap 0.017566744254636, obj 4278923.22395937, time 0.002, 73 shifts
+Iteration 3: gap 0.003600888219056, obj 4239977.24783021, time 0.003, 108 shifts
+Iteration 4: gap 0.001104183648923, obj 4231846.80294949, time 0.004, 154 shifts
+Iteration 5: gap 0.000215331930603, obj 4231368.60031848, time 0.005, 198 shifts
+Iteration 6: gap 0.000043517390506, obj 4231341.44121653, time 0.006, 242 shifts
+Iteration 7: gap 0.000020186322772, obj 4231336.75705497, time 0.007, 334 shifts
+Iteration 8: gap 0.000010038967078, obj 4231335.93419395, time 0.009, 414 shifts
+Iteration 9: gap 0.000005879829636, obj 4231335.83761053, time 0.010, 469 shifts
+Iteration 10: gap 0.000008807818434, obj 4231335.43297041, time 0.012, 621 shifts
+Iteration 11: gap 0.000003531214119, obj 4231335.4045835, time 0.013, 670 shifts
+Iteration 12: gap 0.000002554135078, obj 4231335.31214833, time 0.015, 830 shifts
+Iteration 13: gap 0.000001812447198, obj 4231335.30864384, time 0.015, 879 shifts
+Iteration 14: gap 0.000000975815381, obj 4231335.29692289, time 0.017, 969 shifts
