@@ -44,7 +44,7 @@ parser.add_argument('-a', '--approx', type=bool,
                     help='approximation enabled for speed', default=False)
 parser.add_argument('-s', '--beamsearch', type=bool,
                     help='beam search enabled for speed', default=False)
-parser.add_argument('-k', '--keep top k in beam search', type=bool,
+parser.add_argument('-k', '--beamk', type=int,
                     help='beam search parameter', default=10)
 parser.add_argument('-r', '--reps', type=int,
                     help='number of scenarios with the given parameters', default=1)
@@ -808,21 +808,23 @@ def expand_forward(start_node, end_node, open_list_b, open_list_f, closed_list_b
     # Found the goal
     if current_node == end_node:
         # print('at the end_node')
-        return open_list_f, closed_list_f, closed_list_f_g, best_ub, best_feasible_soln, num_tap_solved
+        return open_list_f, closed_list_f, closed_list_f_g, best_ub, best_feasible_soln, num_tap_solved, current_node.level
 
     if current_node.f > best_feasible_soln.g or current_node.f > best_ub:
         # print('current node is pruned')
-        return open_list_f, closed_list_f, closed_list_f_g, best_ub, best_feasible_soln, num_tap_solved
+        return open_list_f, closed_list_f, closed_list_f_g, best_ub, best_feasible_soln, num_tap_solved, current_node.level
 
     # Generate children
     eligible_expansions = get_successors_f(current_node)
     children = []
 
+    current_level = current_node.level
     for a_link in eligible_expansions:
 
         # Create new node
+        current_level = current_node.level + 1
         new_node, solved = expand_sequence_f(
-            current_node, a_link, level=current_node.level + 1)
+            current_node, a_link, level=current_level)
         num_tap_solved += solved
         # Append
         children.append(new_node)
@@ -907,7 +909,7 @@ def expand_forward(start_node, end_node, open_list_b, open_list_f, closed_list_b
         else:
             del child
 
-    return open_list_f, closed_list_f, closed_list_f_g, best_ub, best_feasible_soln, num_tap_solved
+    return open_list_f, closed_list_f, closed_list_f_g, best_ub, best_feasible_soln, num_tap_solved, current_level
 
 
 def expand_backward(start_node, end_node, open_list_b, open_list_f, closed_list_b, closed_list_f, closed_list_b_g, best_ub, best_feasible_soln, num_tap_solved, front_to_end=False):
@@ -962,26 +964,26 @@ def expand_backward(start_node, end_node, open_list_b, open_list_f, closed_list_
     # Found the goal
     if current_node == start_node:
         # print('at the start node')
-        return open_list_b, closed_list_b, closed_list_b_g, best_ub, best_feasible_soln, num_tap_solved
+        return open_list_b, closed_list_b, closed_list_b_g, best_ub, best_feasible_soln, num_tap_solved, current_node.level
 
     if current_node.f > best_ub:
         # print('current node is pruned')
-        return open_list_b, closed_list_b, closed_list_b_g, best_ub, best_feasible_soln, num_tap_solved
+        return open_list_b, closed_list_b, closed_list_b_g, best_ub, best_feasible_soln, num_tap_solved, current_node.level
 
     # Generate children
     eligible_expansions = get_successors_b(current_node)
 
     children = []
 
-    # if current_node.path == ['(13,12)']:
-    #     pdb.set_trace()
+    current_level = current_node.level
+
     for a_link in eligible_expansions:
 
         # Create new node
+        current_level = current_node.level - 1
         new_node, solved = expand_sequence_b(
-            current_node, a_link, level=current_node.level - 1)
+            current_node, a_link, level=current_level)
         num_tap_solved += solved
-        # Append
         children.append(new_node)
 
     del current_node
@@ -1055,18 +1057,14 @@ def expand_backward(start_node, end_node, open_list_b, open_list_f, closed_list_
         else:
             del child
 
-    return open_list_b, closed_list_b, closed_list_b_g, best_ub, best_feasible_soln, num_tap_solved
+    return open_list_b, closed_list_b, closed_list_b_g, best_ub, best_feasible_soln, num_tap_solved, current_level
 
-def purge(open_list_b, open_list_f, closed_list_b, closed_list_b_g, closed_list_f, closed_list_f_g):
+def purge(open_list_b, open_list_f, closed_list_b, closed_list_b_g, closed_list_f, closed_list_f_g, max_level_f, max_level_b, beam_k):
 
-    max_level_f = open_list_f[-1].level
-    max_level_b = open_list_b[-1].level
-
-    k = 20
     keep_f =[]
     if max_level_f > 2:
-        values_ofn = np.ones((k, max_level_f - 2)) * np.inf
-        indices_ofn = np.ones((k, max_level_f - 2)) * np.inf
+        values_ofn = np.ones((beam_k, max_level_f - 2)) * np.inf
+        indices_ofn = np.ones((beam_k, max_level_f - 2)) * np.inf
 
         for idx, ofn in enumerate(open_list_f):
             cur_lev = ofn.level
@@ -1083,10 +1081,60 @@ def purge(open_list_b, open_list_f, closed_list_b, closed_list_b_g, closed_list_
             else:
                 keep_f.append(idx)
 
-    pdb.set_trace()
+        indices_ofn = indices_ofn.ravel()
+        indices_ofn = indices_ofn[indices_ofn < 1000]
+        keepinds = np.concatenate((np.array(keep_f), indices_ofn), axis=None).astype(int)
+        
+        not_kept = np.delete(np.arange(len(open_list_f)), keepinds)
+        for i in not_kept:
+            not_kept_node = open_list_f[i]
+            closed_list_f.append(not_kept_node.fixed)
+            closed_list_f_g.append(not_kept_node.g)
+
+        open_list_f = list(np.array(open_list_f)[keepinds])
 
 
-def search(start_node, end_node, best_ub):
+
+    keep_b =[]
+    max_level_b = len(damaged_dict) - max_level_b
+
+    if max_level_b > 2:
+        values_ofn = np.ones((beam_k, max_level_f - 2)) * np.inf
+        indices_ofn = np.ones((beam_k, max_level_f - 2)) * np.inf
+
+        for idx, ofn in enumerate(open_list_b):
+            cur_lev = len(damaged_dict) - ofn.level
+            if cur_lev > 2:
+                try:
+                    cur_max = np.max(values_ofn[:, cur_lev-3])
+                    max_idx = np.argmax(values_ofn[:, cur_lev-3])
+                except:
+                    pdb.set_trace()
+
+                if ofn.f < cur_max:
+                    indices_ofn[max_idx, cur_lev-3] = idx
+                    values_ofn[max_idx, cur_lev-3] = ofn.f
+            else:
+                keep_b.append(idx)
+
+        indices_ofn = indices_ofn.ravel()
+        indices_ofn = indices_ofn[indices_ofn < 1000]
+        keepinds = np.concatenate((np.array(keep_b), indices_ofn), axis=None).astype(int)
+        
+        not_kept = np.delete(np.arange(len(open_list_b)), keepinds)
+        for i in not_kept:
+            not_kept_node = open_list_b[i]
+            closed_list_b.append(not_kept_node.fixed)
+            closed_list_b_g.append(not_kept_node.g)
+
+        open_list_b = list(np.array(open_list_b)[keepinds])
+
+
+
+    return open_list_b, open_list_f, closed_list_b, closed_list_b_g, closed_list_f, closed_list_f_g
+
+
+def search(start_node, end_node, best_ub, beam_search=False, beam_k=None):
     """Returns the best order to visit the set of nodes"""
 
     # ideas in Holte: (search that meets in the middle)
@@ -1094,6 +1142,9 @@ def search(start_node, end_node, best_ub):
     # pr(n) = max(f(n), 2g(n)) - min priority expands
     # U is best solution found so far - stops when - U <=max(C,fminF,fminB,gminF +gminB + eps)
     # this is for front to end
+
+    max_level_b = 0
+    max_level_f = 0
 
     iter_count = 0
     kb, kf = 0, 0
@@ -1135,16 +1186,20 @@ def search(start_node, end_node, best_ub):
         # print('f length {} b length {}'.format(len(open_list_f), len(open_list_b)))
 
         if search_direction == 'Forward':
-            open_list_f, closed_list_f, closed_list_f_g, best_ub, best_feasible_soln, num_tap_solved = expand_forward(
+            open_list_f, closed_list_f, closed_list_f_g, best_ub, best_feasible_soln, num_tap_solved, level_f = expand_forward(
                 start_node, end_node, open_list_b, open_list_f, closed_list_b, closed_list_f, closed_list_f_g, best_ub, best_feasible_soln, num_tap_solved, front_to_end=False)
+            max_level_f = max(max_level_f, level_f)
+
         else:
-            open_list_b, closed_list_b, closed_list_b_g, best_ub, best_feasible_soln, num_tap_solved = expand_backward(
+            open_list_b, closed_list_b, closed_list_b_g, best_ub, best_feasible_soln, num_tap_solved, level_b = expand_backward(
                 start_node, end_node, open_list_b, open_list_f, closed_list_b, closed_list_f, closed_list_b_g, best_ub, best_feasible_soln, num_tap_solved, front_to_end=False)
+            max_level_b = max(max_level_b, level_b)
 
         if iter_count % 25 == 0:
             print('length of forward open list: ', len(open_list_f))
             print('length of backwards open list: ', len(open_list_b))
-            # open_list_b, open_list_f, closed_list_b, closed_list_b_g, closed_list_f, closed_list_f_g = purge(open_list_b, open_list_f, closed_list_b, closed_list_b_g, closed_list_f, closed_list_f_g)
+            if beam_search:
+                open_list_b, open_list_f, closed_list_b, closed_list_b_g, closed_list_f, closed_list_f_g = purge(open_list_b, open_list_f, closed_list_b, closed_list_b_g, closed_list_f, closed_list_f_g, max_level_f, max_level_b, beam_k)
 
         # check termination
         if len(open_list_b) > 0:
@@ -1680,6 +1735,9 @@ if __name__ == '__main__':
     num_broken = args.num_broken
     approx = args.approx
     reps = args.reps
+    beam_search = args.beamsearch
+    beam_k = int(args.beamk)
+
     opt = True
 
     NETWORK = os.path.join(FOLDER, net_name)
@@ -1812,6 +1870,7 @@ if __name__ == '__main__':
             print('optimal obj: {}, optimal path: {}'.format(opt_obj, opt_soln))
 
         # feasible_soln_taps = num_damaged * (num_damaged + 1) / 2.0
+        memory1 = deepcopy(memory)
         algo_num_tap = best_benefit_taps + worst_benefit_taps
         best_ub = np.inf
 
@@ -1840,6 +1899,8 @@ if __name__ == '__main__':
             algo_path, algo_obj, algo_num_tap, algo_elapsed))
 
         # algo with gap 1e-4
+        memory = deepcopy(memory1)
+
         r_algo_num_tap = best_benefit_taps + worst_benefit_taps
         best_bound = np.inf
 
@@ -1852,7 +1913,7 @@ if __name__ == '__main__':
             search_start = time.time()
             r_algo_path, r_algo_obj, r_search_tap_solved = search(
                 start_node, end_node, best_bound)
-
+            print(r_search_tap_solved)
             net_after, after_eq_tstt = state_after(damaged_links, save_dir)
 
             first_net = deepcopy(net_after)
@@ -1862,7 +1923,7 @@ if __name__ == '__main__':
 
             search_elapsed = time.time() - search_start
 
-            r_algo_num_tap += search_tap_solved
+            r_algo_num_tap += r_search_tap_solved
             r_algo_elapsed = search_elapsed + benefit_analysis_elapsed
 
             save(fname + '_obj', r_algo_obj)
@@ -1875,6 +1936,47 @@ if __name__ == '__main__':
             r_algo_num_tap = load(fname + '_num_tap')
             r_algo_elapsed = load(fname + '_elapsed')
 
+
+        if beam_search:
+            memory = deepcopy(memory1)
+
+            beamsearch_num_tap = best_benefit_taps + worst_benefit_taps
+            best_bound = np.inf
+
+            fname = save_dir + '/beamsearch_solution'
+
+            start_node.relax = True
+            end_node.relax = True
+
+            if not os.path.exists(fname + extension):
+                search_start = time.time()
+                beamsearch_path, beamsearch_obj, beamsearch_tap_solved = search(
+                    start_node, end_node, best_bound, beam_search=beam_search, beam_k=beam_k)
+
+                net_after, after_eq_tstt = state_after(damaged_links, save_dir)
+
+                first_net = deepcopy(net_after)
+                first_net.relax = False
+                beamsearch_obj, _, _ = eval_sequence(
+                    first_net, r_algo_path, after_eq_tstt, before_eq_tstt)
+
+                search_elapsed = time.time() - search_start
+
+                beamsearch_num_tap += beamsearch_tap_solved
+                beamsearch_elapsed = search_elapsed + benefit_analysis_elapsed
+
+                save(fname + '_obj', beamsearch_obj)
+                save(fname + '_path', beamsearch_path)
+                save(fname + '_num_tap', beamsearch_num_tap)
+                save(fname + '_elapsed', beamsearch_elapsed)
+            else:
+                beamsearch_obj = load(fname + '_obj')
+                beamsearch_path = load(fname + '_path')
+                beamsearch_num_tap = load(fname + '_num_tap')
+                beamsearch_elapsed = load(fname + '_elapsed')
+
+
+
         t = PrettyTable()
         t.title = 'SiouxFalls' + ' with ' + str(num_broken) + ' broken bridges'
         t.field_names = ['Method', 'Objective', 'Run Time', '# TAP']
@@ -1882,6 +1984,8 @@ if __name__ == '__main__':
             t.add_row(['OPTIMAL', opt_obj, opt_elapsed, opt_num_tap])
         if approx:
             t.add_row(['APPROX', approx_obj, approx_elapsed, approx_num_tap])
+        if beam_search:
+            t.add_row(['BeamSearch', beamsearch_obj, beamsearch_elapsed, beamsearch_num_tap])
         t.add_row(['ALGORITHM', algo_obj, algo_elapsed, algo_num_tap])
         t.add_row(['ALGORITHM_low_gap', r_algo_obj,
                    r_algo_elapsed, r_algo_num_tap])
