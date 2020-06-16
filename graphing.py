@@ -1,7 +1,12 @@
-import os
 from matplotlib import cm
+import pdb
+import numpy as np
+import os
+from sequence_utils import *
+import matplotlib._color_data as mcd
 
-def graph_current(tstt_state, days_state, before_eq_tstt, after_eq_tstt, path, plt_path, algo, together, place, color_dict, sname):
+
+def graph_current(tstt_state, days_state, before_eq_tstt, after_eq_tstt, path, plt_path, algo, together, place, color_dict):
 
     N = sum(days_state)
 
@@ -32,13 +37,14 @@ def graph_current(tstt_state, days_state, before_eq_tstt, after_eq_tstt, path, p
     else:
         plt.figure(figsize=(16, 8))
 
+
     plt.fill_between(x, y, before_eq_tstt, step="post",
-                     color='#087efe', alpha=0.2, label='TOTAL AREA:' + '{0:1.5e}'.format(tot_area))
+                     color='#087efe', alpha=0.2, label='TOTAL AREA:' + '{0:1.3e}'.format(tot_area))
     # plt.step(x, y, label='tstt', where="post")
     plt.xlabel('DAYS')
-    plt.ylabel('TSTT')
+    plt.ylabel('TSTT (in minutes)')
 
-    plt.ylim((before_eq_tstt, after_eq_tstt + after_eq_tstt * 0.07))
+    plt.ylim((before_eq_tstt, (after_eq_tstt + after_eq_tstt * 0.07)))
 
     for i in range(len(tstt_state)):
 
@@ -113,7 +119,9 @@ def graph_current(tstt_state, days_state, before_eq_tstt, after_eq_tstt, path, p
         # plt.ylabel(r'\bf{phase field} $\phi$', {'color': 'C0', 'fontsize': 20})
         # plt.yticks((0, 0.5, 1), (r'\bf{0}', r'\bf{.5}', r'\bf{1}'), color='k', size=20)
 
-    plt.title(algo, fontsize=16)
+
+    ###
+    # plt.title(algo, fontsize=16)
     plt.legend(loc='upper right', fontsize=14)
 
     if not together:
@@ -313,13 +321,14 @@ def result_table(reps, file_path, broken, sname):
     save_fig(file_path, 'performance_table_' + 'w_bridge_' + str(broken))
 
 
-def result_sequence_graphs(rep, save_dir, sname):
+def result_sequence_graphs(rep, save_dir):
 
     path_pre = os.path.join(save_dir, str(rep)) + '/'
 
     net_after = load(path_pre + 'net_after')
     net_after.damaged_dict = load(path_pre + 'damaged_dict')
     
+
     if len(net_after.damaged_dict) >= 8:
         opt = False
     else:
@@ -334,16 +343,26 @@ def result_sequence_graphs(rep, save_dir, sname):
     after_eq_tstt = load(path_pre + 'net_after_tstt')
     before_eq_tstt = load(path_pre + 'net_before_tstt')
 
+
     # GRAPH THE RESULTS
+    #CHANGE
+    opt=False
     if opt:
         paths = [algo_path, opt_soln, greedy_soln, importance_soln]
         names = ['ProposedMethod', 'Optimal',
                  'GreedyMethod', 'ImportanceFactor']
         places = [221, 222, 223, 224]
     else:
-        paths = [algo_path, greedy_soln, importance_soln]
-        names = ['ProposedMethod', 'GreedyMethod', 'ImportanceFactor']
-        places = [221, 222, 223]
+        # paths = [algo_path, greedy_soln, importance_soln]
+        paths = [algo_path, importance_soln]
+
+        # names = ['ProposedMethod', 'GreedyMethod', 'ImportanceFactor']
+        names = ['ProposedMethod', 'ImportanceFactor']
+
+        # places = [221, 222, 223]
+        places = [121, 122]
+
+
 
 
     colors = plt.cm.ocean(np.linspace(0, 0.7, len(algo_path)))
@@ -356,18 +375,18 @@ def result_sequence_graphs(rep, save_dir, sname):
     # colors = ['y', 'r', 'b', 'g']
     for path, name, place in zip(paths, names, places):
         tstt_list, days_list = get_marginal_tstts(
-            net_after, path, after_eq_tstt, before_eq_tstt)
+            net_after, path, after_eq_tstt, before_eq_tstt, net_after.damaged_dict)
         graph_current(tstt_list, days_list, before_eq_tstt,
-                      after_eq_tstt, path, path_pre, name, False, place, color_dict, sname)
+                      after_eq_tstt, path, path_pre, name, False, place, color_dict)
 
     plt.close()
     # plt.figure(figsize=(16, 8))
 
     for path, name, place in zip(paths, names, places):
         tstt_list, days_list = get_marginal_tstts(
-            net_after, path, after_eq_tstt, before_eq_tstt)
+            net_after, path, after_eq_tstt, before_eq_tstt, net_after.damaged_dict)
         graph_current(tstt_list, days_list, before_eq_tstt,
-                      after_eq_tstt, path, path_pre, name, True, place, color_dict, sname)
+                      after_eq_tstt, path, path_pre, name, True, place, color_dict)
 
     save_fig(path_pre, 'Comparison')
 
@@ -412,29 +431,27 @@ def get_tables(snames):
             result_table(max_reps, ULT_SCENARIO_DIR, broken, sname)
 
 
-def get_sequence_graphs(snames):
+def get_sequence_graphs(directory):
 
-    for sname in snames:
 
-        SCENARIO_DIR = os.path.join(NETWORK_DIR, sname)
+    SCENARIO_DIR = directory
+    try:
+        broken_bridges = get_folders(SCENARIO_DIR)
+    except:
+        return
+
+    if len(broken_bridges) == 0:
+        return
+
+    for broken in broken_bridges:
+
+        ULT_SCENARIO_DIR = os.path.join(SCENARIO_DIR, broken)
+        repetitions = get_folders(ULT_SCENARIO_DIR)
         
-        try:
-            broken_bridges = get_folders(SCENARIO_DIR)
-        except:
+        if len(repetitions) == 0:
             return
 
-        if len(broken_bridges) == 0:
-            return
+        reps = [int(i) for i in repetitions]
 
-        for broken in broken_bridges:
-
-            ULT_SCENARIO_DIR = os.path.join(SCENARIO_DIR, broken)
-            repetitions = get_folders(ULT_SCENARIO_DIR)
-            
-            if len(repetitions) == 0:
-                return
-
-            reps = [int(i) for i in repetitions]
-
-            for rep in reps:
-                result_sequence_graphs(rep, ULT_SCENARIO_DIR, sname)
+        for rep in reps:
+            result_sequence_graphs(rep, ULT_SCENARIO_DIR)
