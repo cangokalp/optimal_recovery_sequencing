@@ -1115,11 +1115,12 @@ def search(start_node, end_node, best_ub, beam_search=False, beam_k=None):
     return best_feasible_soln.path, best_feasible_soln.g, num_tap_solved
 
 
-def worst_benefit(before, links_to_remove, before_eq_tstt, relax=False):
+def worst_benefit(before, links_to_remove, before_eq_tstt, relax=False, bsearch=False):
     ext_name = ''
     if relax:
         ext_name = '_relax'
-
+    if bsearch:
+        ext_name = '_bsearch'
     fname = before.save_dir + '/worst_benefit_dict' + ext_name
     if not os.path.exists(fname + extension):
         print('worst benefit analysis is running ...')
@@ -1152,10 +1153,12 @@ def worst_benefit(before, links_to_remove, before_eq_tstt, relax=False):
     return wb
 
 
-def best_benefit(after, links_to_remove, after_eq_tstt, relax=False):
+def best_benefit(after, links_to_remove, after_eq_tstt, relax=False, bsearch=False):
     ext_name = ''
     if relax:
         ext_name = '_relax'
+    if bsearch:
+        ext_name = '_bsearch'
     fname = after.save_dir + '/best_benefit_dict' + ext_name
 
     if not os.path.exists(fname + extension):
@@ -1194,12 +1197,16 @@ def best_benefit(after, links_to_remove, after_eq_tstt, relax=False):
     return bb
 
 
-def state_after(damaged_links, save_dir, relax=False, real=False):
+def state_after(damaged_links, save_dir, relax=False, real=False, bsearch=False):
     ext_name = ''
     if relax:
         ext_name = '_relax'
     if real:
         ext_name = '_real'
+
+    if bsearch:
+        ext_name = '_bsearch'
+
     fname = save_dir + '/net_after' + ext_name
     if not os.path.exists(fname + extension):
         net_after = create_network(NETFILE, TRIPFILE)
@@ -1226,13 +1233,14 @@ def state_after(damaged_links, save_dir, relax=False, real=False):
     return net_after, after_eq_tstt
 
 
-def state_before(damaged_links, save_dir, relax=False, real=False):
+def state_before(damaged_links, save_dir, relax=False, real=False, bsearch=False):
     ext_name = ''
     if relax:
         ext_name = '_relax'
     if real:
         ext_name = '_real'
-
+    if bsearch:
+        ext_name = '_bsearch'
     fname = save_dir + '/net_before' + ext_name
     if not os.path.exists(fname + extension):
 
@@ -1588,9 +1596,9 @@ def greedy_heuristic(net_after, after_eq_tstt, before_eq_tstt):
 def local_search(greedy_path):
     pass
 
-def get_wb(damaged_links, save_dir, approx, relax=False):
-    net_after, after_eq_tstt = state_after(damaged_links, save_dir, relax=relax)
-    net_before, before_eq_tstt = state_before(damaged_links, save_dir, relax=relax)
+def get_wb(damaged_links, save_dir, approx, relax=False, bsearch=False):
+    net_after, after_eq_tstt = state_after(damaged_links, save_dir, relax=relax, bsearch=bsearch)
+    net_before, before_eq_tstt = state_before(damaged_links, save_dir, relax=relax, bsearch=bsearch)
 
     save(save_dir + '/damaged_dict', damaged_dict)
 
@@ -1598,8 +1606,8 @@ def get_wb(damaged_links, save_dir, approx, relax=False):
     net_after.save_dir = save_dir
 
     benefit_analysis_st = time.time()
-    wb = worst_benefit(net_before, damaged_links, before_eq_tstt, relax=relax)
-    bb = best_benefit(net_after, damaged_links, after_eq_tstt, relax=relax)
+    wb = worst_benefit(net_before, damaged_links, before_eq_tstt, relax=relax, bsearch=bsearch)
+    bb = best_benefit(net_after, damaged_links, after_eq_tstt, relax=relax, bsearch=bsearch)
     wb, bb = safety(wb, bb)
 
     print('approx', approx)
@@ -1795,7 +1803,7 @@ if __name__ == '__main__':
                     start_node, end_node, best_bound)
                 search_elapsed = time.time() - search_start
 
-                net_after, after_eq_tstt = state_after(damaged_links, save_dir)
+                net_after, after_eq_tstt = state_after(damaged_links, save_dir, real=True)
                 net_before, before_eq_tstt = state_before(damaged_links, save_dir, real=True)
 
                 first_net = deepcopy(net_after)
@@ -1819,7 +1827,11 @@ if __name__ == '__main__':
 
 
             if beam_search:
-                memory = deepcopy(memory1)
+                del memory
+                memory = {}
+
+                wb, bb, start_node, end_node, net_after, net_before, after_eq_tstt, before_eq_tstt, benefit_analysis_st = get_wb(damaged_links, save_dir, approx, relax=True, bsearch=True)
+                benefit_analysis_elapsed = time.time() - benefit_analysis_st
 
                 beamsearch_num_tap = best_benefit_taps + worst_benefit_taps
                 best_bound = np.inf
@@ -1833,15 +1845,17 @@ if __name__ == '__main__':
                     search_start = time.time()
                     beamsearch_path, beamsearch_obj, beamsearch_tap_solved = search(
                         start_node, end_node, best_bound, beam_search=beam_search, beam_k=beam_k)
+                    search_elapsed = time.time() - search_start
 
-                    net_after, after_eq_tstt = state_after(damaged_links, save_dir)
+                    net_after, after_eq_tstt = state_after(damaged_links, save_dir, real=True)
+                    net_before, before_eq_tstt = state_before(damaged_links, save_dir, real=True)
+
 
                     first_net = deepcopy(net_after)
                     first_net.relax = False
                     beamsearch_obj, _, _ = eval_sequence(
                         first_net, beamsearch_path, after_eq_tstt, before_eq_tstt, damaged_dict=damaged_dict)
 
-                    search_elapsed = time.time() - search_start
 
                     beamsearch_num_tap += beamsearch_tap_solved
                     beamsearch_elapsed = search_elapsed + benefit_analysis_elapsed
