@@ -39,7 +39,7 @@ def save_fig(plt_path, algo, tight_layout=True, fig_extension="png", resolution=
     plt.savefig(path, format=fig_extension, dpi=resolution)
 
 
-def create_network(netfile=None, tripfile=None):
+def create_network(netfile=None, tripfile=None, odmultip=1):
 
     net = Network(netfile, tripfile)
     net.netfile = netfile
@@ -59,38 +59,84 @@ def read_scenario(fname='ScenarioAnalysis.xlsx', sname='Moderate_1'):
     return damage_dict
 
 
-def net_update(net):
+def net_update(net, args):
 
-    f = "flows.txt"
-    with open(f, "r") as flow_file:
-        for line in flow_file.readlines():
-            ij = str(line[:line.find(' ')])
-            line = line[line.find(' '):].strip()
-            flow = float(line[:line.find(' ')])
-            line = line[line.find(' '):].strip()
-            cost = float(line.strip())
-            net.link[ij].flow = flow
-            net.link[ij].cost = cost
+    # f = "flows.txt"
+    # file_created = False
+    # st = time.time()
+    # while not file_created:
+    #     if os.path.exists(f):
+    #         file_created = True
 
+    #     if time.time()-st >10:
+    #         popen = subprocess.call(args, stdout=subprocess.DEVNULL)
+
+    #     if file_created:
+    #         with open(f, "r") as flow_file:
+    #             for line in flow_file.readlines():
+    #                 try:
+    #                     ij = str(line[:line.find(' ')])
+    #                     line = line[line.find(' '):].strip()
+    #                     flow = float(line[:line.find(' ')])
+    #                     line = line[line.find(' '):].strip()
+    #                     cost = float(line.strip())
+    #                     net.link[ij].flow = flow
+    #                     net.link[ij].cost = cost
+    #                 except:
+    #                     break
+
+    #         os.remove('flows.txt')
+
+
+
+    try_again = False
     f = "full_log.txt"
-    with open(f, "r") as log_file:
-        last_line = log_file.readlines()[-1]
-        obj = last_line[last_line.find('obj') + 3:].strip()
-        try:
-            tstt = float(obj[:obj.find(',')])
-        except:
-            pdb.set_trace()
+    file_created = False
+    while not file_created:
+        if os.path.exists(f):
+            file_created = True
+        if file_created:
+            with open(f, "r") as log_file:
+                last_line = log_file.readlines()[-1]
+                if last_line.find('obj') >= 0:
 
-        log_file.close()
+                    obj = last_line[last_line.find('obj') + 3:].strip()
+                    try:
+                        tstt = float(obj[:obj.find(',')])
+                    except:
+                        try_again = True
+                else:
+                    try_again = True
+
+
+            idx_wanted = None
+            if try_again:
+                with open(f, "r") as log_file:
+                    lines = log_file.readlines()
+                    for idx, line in enumerate(lines):
+                        if line[:4] == 'next':
+                            idx_wanted = idx-1
+                            break
+                    last_line = lines[idx_wanted]        
+                    obj = last_line[last_line.find('obj') + 3:].strip()
+                    try:
+                        tstt = float(obj[:obj.find(',')])
+                    except:
+                        try_again = True
+            os.remove('full_log.txt')
+    
+    os.remove('current_net.tntp')
 
     return tstt
 
 
-def solve_UE(net=None, relax=False):
+def solve_UE(net=None, relax=False, eval_seq=False):
 
     # modify the net.txt file to send to c code
     shutil.copy(net.netfile, 'current_net.tntp')
     networkFileName = "current_net.tntp"
+
+
 
     df = pd.read_csv(networkFileName, 'r+', delimiter='\t')
 
@@ -101,18 +147,27 @@ def solve_UE(net=None, relax=False):
 
         ind = df[(df['Unnamed: 1'] == str(home)) & (
             df['Unnamed: 2'] == str(to))].index.tolist()[0]
-        df.loc[ind, 'Unnamed: 5'] = 1e9
+        df.loc[ind, 'Unnamed: 5'] = 1e8
 
     df.to_csv('current_net.tntp', index=False, sep="\t")
 
-    if relax:
-        args = shlex.split("tap-b_relax/bin/tap current_net.tntp " + net.tripfile)
+    f = 'current_net.tntp'
+    file_created = False
+    while not file_created:
+        if os.path.exists(f):
+            file_created = True
+
+    if eval_seq:
+        args = shlex.split("tap-b_real/bin/tap current_net.tntp " + net.tripfile)
     else:
-        args = shlex.split("tap-b/bin/tap current_net.tntp " + net.tripfile)
+        if relax:
+            args = shlex.split("tap-b_relax/bin/tap current_net.tntp " + net.tripfile)
+        else:
+            args = shlex.split("tap-b/bin/tap current_net.tntp " + net.tripfile)
 
     popen = subprocess.run(args, stdout=subprocess.DEVNULL)
 
-    tstt = net_update(net)
+    tstt = net_update(net, args)
 
     return tstt
 
@@ -158,7 +213,7 @@ def eval_sequence(net, order_list, after_eq_tstt, before_eq_tstt, if_list=None, 
             tstt_after = model.predict(pattern.reshape(1, -1)) * stdy + meany
         else:
             tap_solved += 1
-            tstt_after = solve_UE(net=net)
+            tstt_after = solve_UE(net=net, eval_seq=True)
 
         tstt_list.append(tstt_after)
 

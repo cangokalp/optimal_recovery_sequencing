@@ -20,7 +20,6 @@ import time
 from scipy import stats
 
 extension = '.pickle'
-memory = {}
 
 parser = argparse.ArgumentParser(
     description='find an order for repairing bridges')
@@ -188,6 +187,9 @@ def expand_sequence_f(node, a_link, level):
 
     else:
         tstt_after = solve_UE(net=net, relax=node.relax)
+        ### DEBUG
+        if net.not_fixed == {'(2,6)', '(2,1)', '(17,19)', '(24,13)'}:
+            pdb.set_trace()
         memory[frozenset(net.not_fixed)] = (tstt_after)
         solved = 1
 
@@ -221,6 +223,9 @@ def expand_sequence_b(node, a_link, level):
         tstt_before = memory[frozenset(net.not_fixed)]
     else:
         tstt_before = solve_UE(net=net, relax=node.relax)
+        ### DEBUG
+        if net.not_fixed == {'(2,6)', '(2,1)', '(17,19)', '(24,13)'}:
+            pdb.set_trace()
         memory[frozenset(net.not_fixed)] = tstt_before
         solved = 1
 
@@ -247,10 +252,60 @@ def orderlists(benefits, days, slack=0, reverse=True):
     return benefits, days
 
 
+def check(fwd_node, bwd_node, relax):
+    fwdnet = create_network(NETFILE, TRIPFILE)
+
+    fwdnet.not_fixed = fwd_node.not_fixed
+    for j in set(fwdnet.not_fixed):
+        fwdnet.link[j].remove()
+
+    fwd_tstt = solve_UE(net=fwdnet, relax=relax)
+
+    bwdnet = create_network(NETFILE, TRIPFILE)
+
+    bwdnet.not_fixed = bwd_node.not_fixed
+
+    for j in set(bwdnet.not_fixed):
+        bwdnet.link[j].remove()
+    bwd_tstt = solve_UE(net=bwdnet, relax=relax)
+
+    return fwd_tstt, bwd_tstt, fwdnet, bwdnet
+
+
 def get_minlb(node, fwd_node, bwd_node, orderedb_benefits, orderedw_benefits, ordered_days, forward_tstt, backward_tstt, backwards=False, best_feasible_soln=None):
 
     slack = forward_tstt - backward_tstt
+    if slack<0:
+        # check len ordered days
+        # check relax or not
+        ftstt, btstt, fwdnet, bwdnet = check(fwd_node, bwd_node, relax=False)
+        ftstt_rel, btstt_rel, fwdnet, bwdnet = check(fwd_node, bwd_node, relax=True)
 
+        print('='*30)
+        print('num links in between: {}, relax?: {}'.format(len(ordered_days), bwd_node.relax))
+
+
+        print('='*30)
+        print('1e-6')
+        print('forward_tstt: {}, backward_tstt: {}'.format(ftstt, btstt))
+
+        print('='*30)
+        print('1e-4')
+        print('forward_tstt: {}, backward_tstt: {}'.format(ftstt_rel, btstt_rel))
+        
+        print('='*30)
+        print('perc diff in fwd: {}, perc diff in bwd: {}'.format((abs(ftstt - ftstt_rel)/ftstt)*100, (abs(btstt - btstt_rel)/btstt)*100))
+
+
+        print('='*30)
+        print('memory_fwd: {}, memory_bwd: {}'.format(memory[frozenset(fwd_node.not_fixed)], memory[frozenset(bwd_node.not_fixed)]))
+
+        backward_tstt_orig = backward_tstt
+        backward_tstt = forward_tstt
+        forward_tstt = backward_tstt_orig
+        slack = forward_tstt - backward_tstt
+
+        
     if len(ordered_days) == 0:
         node.ub = fwd_node.realized_u + bwd_node.realized_u
         node.lb = fwd_node.realized_l + bwd_node.realized_l
@@ -441,13 +496,25 @@ def get_minlb(node, fwd_node, bwd_node, orderedb_benefits, orderedw_benefits, or
         backward_ub += sum(bwd_days_b) * (forward_tstt - node.before_eq_tstt)
 
     if backward_ub < node.ub:
+        # print('ub')
+        # print(backward_ub, node.ub)
         node.ub = backward_ub
 
     if backward_lb > node.lb:
+        # print('lb')
+        # print(backward_lb, node.lb)
         node.lb = backward_lb
 
-    if node.lb >= node.ub:
-        pdb.set_trace()
+    if node.lb > node.ub:
+        
+        if abs(node.lb - node.ub) < 1e-4:
+            tempub = node.ub
+            node.ub = node.lb
+            node.lb = tempub
+
+        else:
+            print('problem')
+            pdb.set_trace()
 
 
 def set_bounds_bif(node, open_list_b, end_node, front_to_end=True, debug=False, best_feasible_soln=None):
@@ -1048,8 +1115,12 @@ def search(start_node, end_node, best_ub, beam_search=False, beam_k=None):
     return best_feasible_soln.path, best_feasible_soln.g, num_tap_solved
 
 
-def worst_benefit(before, links_to_remove, before_eq_tstt):
-    fname = before.save_dir + '/worst_benefit_dict'
+def worst_benefit(before, links_to_remove, before_eq_tstt, relax=False):
+    ext_name = ''
+    if relax:
+        ext_name = '_relax'
+
+    fname = before.save_dir + '/worst_benefit_dict' + ext_name
     if not os.path.exists(fname + extension):
         print('worst benefit analysis is running ...')
         # for each bridge, find the effect on TSTT when that bridge is removed
@@ -1063,7 +1134,11 @@ def worst_benefit(before, links_to_remove, before_eq_tstt):
             not_fixed = [link]
             test_net.not_fixed = set(not_fixed)
 
-            tstt = solve_UE(net=test_net)
+            tstt = solve_UE(net=test_net, relax=relax)
+
+            ##DEBUG
+            # if test_net.not_fixed == {'(2,6)', '(2,1)', '(17,19)', '(24,13)'}:
+            #     pdb.set_trace()
             memory[frozenset(test_net.not_fixed)] = tstt
 
             wb[link] = tstt - before_eq_tstt
@@ -1077,8 +1152,11 @@ def worst_benefit(before, links_to_remove, before_eq_tstt):
     return wb
 
 
-def best_benefit(after, links_to_remove, after_eq_tstt):
-    fname = after.save_dir + '/best_benefit_dict'
+def best_benefit(after, links_to_remove, after_eq_tstt, relax=False):
+    ext_name = ''
+    if relax:
+        ext_name = '_relax'
+    fname = after.save_dir + '/best_benefit_dict' + ext_name
 
     if not os.path.exists(fname + extension):
         print('best benefit analysis is running ...')
@@ -1094,7 +1172,10 @@ def best_benefit(after, links_to_remove, after_eq_tstt):
             added = [link]
             not_fixed = set(to_visit).difference(set(added))
             test_net.not_fixed = set(not_fixed)
-            tstt_after = solve_UE(net=test_net)
+            tstt_after = solve_UE(net=test_net, relax=relax)
+            ##DEBUG
+            # if test_net.not_fixed == {'(2,6)', '(2,1)', '(17,19)', '(24,13)'}:
+            #     pdb.set_trace()
             memory[frozenset(test_net.not_fixed)] = tstt_after
 
             # seq_list.append(Node(link_id=link, parent=None, net=test_net, tstt_after=tstt_after,
@@ -1113,8 +1194,13 @@ def best_benefit(after, links_to_remove, after_eq_tstt):
     return bb
 
 
-def state_after(damaged_links, save_dir):
-    fname = save_dir + '/net_after'
+def state_after(damaged_links, save_dir, relax=False, real=False):
+    ext_name = ''
+    if relax:
+        ext_name = '_relax'
+    if real:
+        ext_name = '_real'
+    fname = save_dir + '/net_after' + ext_name
     if not os.path.exists(fname + extension):
         net_after = create_network(NETFILE, TRIPFILE)
         try:
@@ -1124,7 +1210,10 @@ def state_after(damaged_links, save_dir):
             pdb.set_trace()
         net_after.not_fixed = set(damaged_links)
 
-        after_eq_tstt = solve_UE(net=net_after)
+        after_eq_tstt = solve_UE(net=net_after, relax=relax)
+        ##DEBUG
+        # if net_after.not_fixed == {'(2,6)', '(2,1)', '(17,19)', '(24,13)'}:
+        #     pdb.set_trace()
         memory[frozenset(net_after.not_fixed)] = after_eq_tstt
 
         save(fname, net_after)
@@ -1137,14 +1226,20 @@ def state_after(damaged_links, save_dir):
     return net_after, after_eq_tstt
 
 
-def state_before(damaged_links, save_dir):
-    fname = save_dir + '/net_before'
+def state_before(damaged_links, save_dir, relax=False, real=False):
+    ext_name = ''
+    if relax:
+        ext_name = '_relax'
+    if real:
+        ext_name = '_real'
+
+    fname = save_dir + '/net_before' + ext_name
     if not os.path.exists(fname + extension):
 
         net_before = create_network(NETFILE, TRIPFILE)
         net_before.not_fixed = set([])
 
-        before_eq_tstt = solve_UE(net=net_before)
+        before_eq_tstt = solve_UE(net=net_before, relax=relax)
         memory[frozenset(net_before.not_fixed)] = before_eq_tstt
 
         save(fname, net_before)
@@ -1157,7 +1252,7 @@ def state_before(damaged_links, save_dir):
     return net_before, before_eq_tstt
 
 
-def safety():
+def safety(wb, bb):
     for a_link in wb:
         if bb[a_link] < wb[a_link]:
             worst = bb[a_link]
@@ -1493,6 +1588,57 @@ def greedy_heuristic(net_after, after_eq_tstt, before_eq_tstt):
 def local_search(greedy_path):
     pass
 
+def get_wb(damaged_links, save_dir, approx, relax=False):
+    net_after, after_eq_tstt = state_after(damaged_links, save_dir, relax=relax)
+    net_before, before_eq_tstt = state_before(damaged_links, save_dir, relax=relax)
+
+    save(save_dir + '/damaged_dict', damaged_dict)
+
+    net_before.save_dir = save_dir
+    net_after.save_dir = save_dir
+
+    benefit_analysis_st = time.time()
+    wb = worst_benefit(net_before, damaged_links, before_eq_tstt, relax=relax)
+    bb = best_benefit(net_after, damaged_links, after_eq_tstt, relax=relax)
+    wb, bb = safety(wb, bb)
+
+    print('approx', approx)
+    # approx solution
+    if approx:
+        model, meany, stdy = preprocessing(damaged_links, net_after)
+        approx_obj, approx_soln, approx_elapsed, approx_num_tap = brute_force(
+            net_after, after_eq_tstt, before_eq_tstt, is_approx=True)
+
+        print('approx obj: {}, approx path: {}'.format(
+            approx_obj, approx_soln))
+
+    start_node = Node(tstt_after=after_eq_tstt)
+    start_node.before_eq_tstt = before_eq_tstt
+    start_node.after_eq_tstt = after_eq_tstt
+    start_node.realized = 0
+    start_node.realized_u = 0
+    start_node.level = 0
+    start_node.visited, start_node.not_visited = set(
+        []), set(damaged_links)
+    start_node.fixed, start_node.not_fixed = set([]), set(damaged_links)
+
+
+    end_node = Node(tstt_before=before_eq_tstt, forward=False)
+    end_node.before_eq_tstt = before_eq_tstt
+    end_node.after_eq_tstt = after_eq_tstt
+    end_node.level = len(damaged_links)
+    
+    end_node.visited, end_node.not_visited = set([]), set(damaged_links)
+    
+    end_node.fixed, end_node.not_fixed = set(
+        damaged_links), set([])
+
+    start_node.relax = relax
+    end_node.relax = relax
+
+    return wb, bb, start_node, end_node, net_after, net_before, after_eq_tstt, before_eq_tstt, benefit_analysis_st
+
+
 
 if __name__ == '__main__':
 
@@ -1525,8 +1671,10 @@ if __name__ == '__main__':
 
         if num_broken >= 8:
             opt = False
-
+        opt = False
         for rep in range(reps):
+            memory = {}
+
             net = create_network(NETFILE, TRIPFILE)
             all_links = [lnk for lnk in net.link]
             damaged_links = np.random.choice(all_links, num_broken, replace=False)
@@ -1569,64 +1717,19 @@ if __name__ == '__main__':
 
             save_dir = ULT_SCENARIO_REP_DIR
 
-            net_after, after_eq_tstt = state_after(damaged_links, save_dir)
-            net_before, before_eq_tstt = state_before(damaged_links, save_dir)
-
-            save(save_dir + '/damaged_dict', damaged_dict)
-
-            net_before.save_dir = save_dir
-            net_after.save_dir = save_dir
-
-            benefit_analysis_st = time.time()
-            wb = worst_benefit(net_before, damaged_links, before_eq_tstt)
-            bb = best_benefit(net_after, damaged_links, after_eq_tstt)
-            wb, bb = safety()
-
-            print('approx', approx)
-            # approx solution
-            if approx:
-                model, meany, stdy = preprocessing(damaged_links, net_after)
-                approx_obj, approx_soln, approx_elapsed, approx_num_tap = brute_force(
-                    net_after, after_eq_tstt, before_eq_tstt, is_approx=True)
-
-                print('approx obj: {}, approx path: {}'.format(
-                    approx_obj, approx_soln))
-
-            start_node = Node(tstt_after=after_eq_tstt)
-            start_node.before_eq_tstt = before_eq_tstt
-            start_node.after_eq_tstt = after_eq_tstt
-            start_node.realized = 0
-            start_node.realized_u = 0
-            start_node.level = 0
-            start_node.visited, start_node.not_visited = set(
-                []), set(damaged_links)
-            start_node.fixed, start_node.not_fixed = set([]), set(damaged_links)
-            # start_node.net.fixed, start_node.net.not_fixed = set(
-            #     []), set(damaged_links)
-
-
-            end_node = Node(tstt_before=before_eq_tstt, forward=False)
-            end_node.before_eq_tstt = before_eq_tstt
-            end_node.after_eq_tstt = after_eq_tstt
-            end_node.level = len(damaged_links)
             
-            end_node.visited, end_node.not_visited = set([]), set(damaged_links)
-            
-            end_node.fixed, end_node.not_fixed = set(
-                damaged_links), set([])
-            
-            # end_node.net.fixed, end_node.net.not_fixed = set(
-                # damaged_links), set([])
+            wb, bb, start_node, end_node, net_after, net_before, after_eq_tstt, before_eq_tstt, benefit_analysis_st = get_wb(damaged_links, save_dir, approx, relax=False)
+
             
             benefit_analysis_elapsed = time.time() - benefit_analysis_st
 
             ### Get greedy solution ###
-            greedy_obj, greedy_soln, greedy_elapsed, greedy_num_tap = greedy_heuristic(
-                net_after, after_eq_tstt, before_eq_tstt)
+            # greedy_obj, greedy_soln, greedy_elapsed, greedy_num_tap = greedy_heuristic(
+            #     net_after, after_eq_tstt, before_eq_tstt)
 
             ### Get feasible solution using importance factor ###
-            importance_obj, importance_soln, importance_elapsed, importance_num_tap = importance_factor_solution(
-                net_before, after_eq_tstt, before_eq_tstt)
+            # importance_obj, importance_soln, importance_elapsed, importance_num_tap = importance_factor_solution(
+                # net_before, after_eq_tstt, before_eq_tstt)
 
             best_benefit_taps = num_damaged
             worst_benefit_taps = num_damaged
@@ -1643,13 +1746,21 @@ if __name__ == '__main__':
             algo_num_tap = best_benefit_taps + worst_benefit_taps
             best_ub = np.inf
 
-            fname = net_after.save_dir + '/algo_solution'
+            fname = save_dir + '/algo_solution'
 
             if not os.path.exists(fname + extension):
                 search_start = time.time()
                 algo_path, algo_obj, search_tap_solved = search(
                     start_node, end_node, best_ub)
                 search_elapsed = time.time() - search_start
+
+                net_after, after_eq_tstt = state_after(damaged_links, save_dir, real=True)
+                net_before, before_eq_tstt = state_before(damaged_links, save_dir, real=True)
+
+                first_net = deepcopy(net_after)
+                first_net.relax = False
+                algo_obj, _, _ = eval_sequence(
+                    first_net, algo_path, after_eq_tstt, before_eq_tstt, damaged_dict=damaged_dict)
 
                 algo_num_tap += search_tap_solved
                 algo_elapsed = search_elapsed + benefit_analysis_elapsed
@@ -1668,29 +1779,30 @@ if __name__ == '__main__':
                 algo_path, algo_obj, algo_num_tap, algo_elapsed))
 
             # algo with gap 1e-4
-            memory = deepcopy(memory1)
+            del memory
+            memory = {}
 
             r_algo_num_tap = best_benefit_taps + worst_benefit_taps
             best_bound = np.inf
 
-            fname = net_after.save_dir + '/r_algo_solution'
-
-            start_node.relax = True
-            end_node.relax = True
+            fname = save_dir + '/r_algo_solution'
+            wb, bb, start_node, end_node, net_after, net_before, after_eq_tstt, before_eq_tstt, benefit_analysis_st = get_wb(damaged_links, save_dir, approx, relax=True)
+            benefit_analysis_elapsed = time.time() - benefit_analysis_st
 
             if not os.path.exists(fname + extension):
                 search_start = time.time()
                 r_algo_path, r_algo_obj, r_search_tap_solved = search(
                     start_node, end_node, best_bound)
-                print(r_search_tap_solved)
+                search_elapsed = time.time() - search_start
+
                 net_after, after_eq_tstt = state_after(damaged_links, save_dir)
+                net_before, before_eq_tstt = state_before(damaged_links, save_dir, real=True)
 
                 first_net = deepcopy(net_after)
                 first_net.relax = False
                 r_algo_obj, _, _ = eval_sequence(
                     first_net, r_algo_path, after_eq_tstt, before_eq_tstt, damaged_dict=damaged_dict)
 
-                search_elapsed = time.time() - search_start
 
                 r_algo_num_tap += r_search_tap_solved
                 r_algo_elapsed = search_elapsed + benefit_analysis_elapsed
@@ -1727,7 +1839,7 @@ if __name__ == '__main__':
                     first_net = deepcopy(net_after)
                     first_net.relax = False
                     beamsearch_obj, _, _ = eval_sequence(
-                        first_net, r_algo_path, after_eq_tstt, before_eq_tstt, damaged_dict=damaged_dict)
+                        first_net, beamsearch_path, after_eq_tstt, before_eq_tstt, damaged_dict=damaged_dict)
 
                     search_elapsed = time.time() - search_start
 
@@ -1747,7 +1859,7 @@ if __name__ == '__main__':
 
 
             t = PrettyTable()
-            t.title = 'SiouxFalls' + ' with ' + str(num_broken) + ' broken bridges'
+            t.title = net_name + ' with ' + str(num_broken) + ' broken bridges'
             t.field_names = ['Method', 'Objective', 'Run Time', '# TAP']
             if opt:
                 t.add_row(['OPTIMAL', opt_obj, opt_elapsed, opt_num_tap])
@@ -1758,7 +1870,7 @@ if __name__ == '__main__':
             t.add_row(['ALGORITHM', algo_obj, algo_elapsed, algo_num_tap])
             t.add_row(['ALGORITHM_low_gap', r_algo_obj,
                        r_algo_elapsed, r_algo_num_tap])
-            t.add_row(['GREEDY', greedy_obj, greedy_elapsed, greedy_num_tap])
-            t.add_row(['IMPORTANCE', importance_obj,
-                       importance_elapsed, importance_num_tap])
+            # t.add_row(['GREEDY', greedy_obj, greedy_elapsed, greedy_num_tap])
+            # t.add_row(['IMPORTANCE', importance_obj,
+            #            importance_elapsed, importance_num_tap])
             print(t)
