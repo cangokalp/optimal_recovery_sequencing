@@ -19,91 +19,85 @@ def distance(origin, destination):
 
     return d
 
-scenario = pd.read_csv('Scenario_1.csv')
+def get_broken_links(JSONFILE, scenario_file):
 
-with open('anaheim.geojson') as f:
-  netgeo = json.load(f)
-
-correspondence = {}
-for index,row in scenario.iterrows():
-	fac_id = row['FacilityID'] 
-	lon = row['Longitude']
-	lat = row['Latitude']
-	dest = (lon, lat)
-	min_dist = np.inf
-	star_dict = None
-	for adict in netgeo['features']:
-		dist = distance(adict['geometry']['coordinates'][0], dest)
-		dist = min(distance(adict['geometry']['coordinates'][1], dest), dist)
-		if dist < min_dist:
-			min_dist = dist
-			star_dict = adict
-	
-	if min_dist > 0.3:
-		continue
-	st = star_dict['properties']['init_node']
-	tm = star_dict['properties']['term_node']
-	cur_key = (st,tm)
-
-	if cur_key not in correspondence:
-		correspondence[cur_key] = (fac_id, min_dist)
-	else:
-		_, old_dist = correspondence[cur_key]
-		if min_dist < old_dist:
-			correspondence[cur_key] = (fac_id, min_dist)
+	scenario = pd.read_csv(scenario_file)
 
 
-pdb.set_trace()
+	with open(JSONFILE) as f:
+	  netgeo = json.load(f)
 
-## export new_json
-
-bridgejson = {}
-bridgejson['features'] = []
-
-scenario = pd.read_csv('Scenario_1.csv')
-
-all_facilities = []
-for k,v in correspondence.items():
+	correspondence = {}
 	for index,row in scenario.iterrows():
-		fac_id = row['FacilityID']
-		if fac_id != v[0]:
+		state = row['State']
+		if state == 'No Damage':
 			continue
-		all_facilities.append(fac_id)
+		fac_id = row['FacilityID'] 
 		lon = row['Longitude']
 		lat = row['Latitude']
-		bridgejson['features'].append({
-	    'type': 'Feature',
-	    'properties': {},
-		'geometry': {
-	    'type': 'Point',
-		'coordinates': [lon, lat],
-		}
-		})
+		r_time = row['RepairTime']
+		dest = (lon, lat)
+		min_dist = np.inf
+		star_dict = None
+		for adict in netgeo['features']:
+			dist = distance(adict['geometry']['coordinates'][0], dest)
+			dist = min(distance(adict['geometry']['coordinates'][1], dest), dist)
+			if dist < min_dist:
+				min_dist = dist
+				star_dict = adict
+		
+		if min_dist > 0.3:
+			continue
+		st = star_dict['properties']['init_node']
+		tm = star_dict['properties']['term_node']
+		cur_key = (st,tm)
+
+		if cur_key not in correspondence:
+			correspondence[cur_key] = (fac_id, min_dist, r_time)
+		else:
+			_, old_dist, _ = correspondence[cur_key]
+			if min_dist < old_dist:
+				correspondence[cur_key] = (fac_id, min_dist, r_time)
 
 
-with open('bridge_new.json', 'w') as outfile:
-    json.dump(bridgejson, outfile)
+	damaged_dict = {}
+
+	for k,v in correspondence.items():
+		link_name = '(' + str(k[0]) +',' + str(k[1]) + ')'
+		damaged_dict[link_name] = v[2]
+
+	# scenario['exists_in_netfile'] = 0
+	# scenario.loc[scenario['FacilityID'].isin(all_facilities), ['exists_in_netfile']] = 1
+	# scenario.to_csv('Scenario_1_edited.csv')
 
 
-import os
-FOLDER = "TransportationNetworks"
-net_name = 'Anaheim'
-NETWORK = os.path.join(FOLDER, net_name)
-NETFILE = os.path.join(NETWORK, net_name + "_net.tntp")
-TRIPFILE = os.path.join(NETWORK, net_name + "_trips.tntp")
-net = Network(NETFILE, TRIPFILE)
-for k,v in correspondence.items():
-	link_name = '(' + str(k[0]) +',' + str(k[1]) + ')'
-	print(v[0], net.link[link_name])
+	## export new_json
+
+	# bridgejson = {}
+	# bridgejson['features'] = []
 
 
+	# all_facilities = []
+	# for k,v in correspondence.items():
+	# 	for index,row in scenario.iterrows():
+	# 		fac_id = row['FacilityID']
+	# 		if fac_id != v[0]:
+	# 			continue
+	# 		all_facilities.append(fac_id)
+	# 		lon = row['Longitude']
+	# 		lat = row['Latitude']
+	# 		bridgejson['features'].append({
+	# 	    'type': 'Feature',
+	# 	    'properties': {},
+	# 		'geometry': {
+	# 	    'type': 'Point',
+	# 		'coordinates': [lon, lat],
+	# 		}
+	# 		})
 
 
-pdb.set_trace()
-scenario['exists_in_netfile'] = 0
-scenario.loc[scenario['FacilityID'].isin(all_facilities), ['exists_in_netfile']] = 1
-scenario.to_csv('Scenario_1_edited.csv')
+	# with open('bridge_new.json', 'w') as outfile:
+	#     json.dump(bridgejson, outfile)
 
-
-
+	return damaged_dict
 
