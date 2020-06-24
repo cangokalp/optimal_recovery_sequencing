@@ -18,9 +18,9 @@ import os.path
 from ctypes import *
 import time
 from scipy import stats
+from correspondence import *
 
 extension = '.pickle'
-memory = {}
 
 parser = argparse.ArgumentParser(
     description='find an order for repairing bridges')
@@ -32,11 +32,20 @@ parser.add_argument('-a', '--approx', type=bool,
 parser.add_argument('-s', '--beamsearch', type=bool,
                     help='beam search enabled for speed', default=False)
 parser.add_argument('-k', '--beamk', type=int,
-                    help='beam search parameter', default=10)
+                    help='beam search parameter', default=20)
 parser.add_argument('-r', '--reps', type=int,
                     help='number of scenarios with the given parameters', default=1)
 parser.add_argument('-g', '--graphing', type=bool, 
                     help='graphing mode', default=False)
+parser.add_argument('-o', '--scenario', type=str, 
+                    help='scenario file', default='scenario.csv')
+parser.add_argument('-t', '--strength', type=str, 
+                    help='strength of the earthquake')
+parser.add_argument('-y', '--onlybeforeafter', type=bool,
+                    help='to get before and after tstt', default=False)
+parser.add_argument('-f', '--full', type=bool,
+                    help='to use full algo not beam search', default=False)
+
 
 args = parser.parse_args()
 
@@ -246,10 +255,33 @@ def orderlists(benefits, days, slack=0, reverse=True):
 
     return benefits, days
 
+def check(fwd_node, bwd_node, relax):
+    fwdnet = create_network(NETFILE, TRIPFILE)
+
+    fwdnet.not_fixed = fwd_node.not_fixed
+    for j in set(fwdnet.not_fixed):
+        fwdnet.link[j].remove()
+
+    fwd_tstt = solve_UE(net=fwdnet, relax=relax)
+
+    bwdnet = create_network(NETFILE, TRIPFILE)
+
+    bwdnet.not_fixed = bwd_node.not_fixed
+
+    for j in set(bwdnet.not_fixed):
+        bwdnet.link[j].remove()
+    bwd_tstt = solve_UE(net=bwdnet, relax=relax)
+
+    return fwd_tstt, bwd_tstt, fwdnet, bwdnet
 
 def get_minlb(node, fwd_node, bwd_node, orderedb_benefits, orderedw_benefits, ordered_days, forward_tstt, backward_tstt, backwards=False, best_feasible_soln=None):
 
     slack = forward_tstt - backward_tstt
+    if slack < 0:
+        backward_tstt_orig = backward_tstt
+        backward_tstt = forward_tstt
+        forward_tstt = backward_tstt_orig
+        slack = forward_tstt - backward_tstt
 
     if len(ordered_days) == 0:
         node.ub = fwd_node.realized_u + bwd_node.realized_u
@@ -446,8 +478,15 @@ def get_minlb(node, fwd_node, bwd_node, orderedb_benefits, orderedw_benefits, or
     if backward_lb > node.lb:
         node.lb = backward_lb
 
-    if node.lb >= node.ub:
-        pdb.set_trace()
+    if node.lb > node.ub:
+        if abs(node.lb - node.ub) < 1e-4:
+            tempub = node.ub
+            node.ub = node.lb
+            node.lb = tempub
+
+        else:
+            print('problem')
+            pdb.set_trace()
 
 
 def set_bounds_bif(node, open_list_b, end_node, front_to_end=True, debug=False, best_feasible_soln=None):
@@ -1048,8 +1087,14 @@ def search(start_node, end_node, best_ub, beam_search=False, beam_k=None):
     return best_feasible_soln.path, best_feasible_soln.g, num_tap_solved
 
 
-def worst_benefit(before, links_to_remove, before_eq_tstt):
-    fname = before.save_dir + '/worst_benefit_dict'
+
+def worst_benefit(before, links_to_remove, before_eq_tstt, relax=False, bsearch=False):
+    ext_name = ''
+    if relax:
+        ext_name = '_relax'
+    if bsearch:
+        ext_name = '_bsearch'
+    fname = before.save_dir + '/worst_benefit_dict' + ext_name
     if not os.path.exists(fname + extension):
         print('worst benefit analysis is running ...')
         # for each bridge, find the effect on TSTT when that bridge is removed
@@ -1063,7 +1108,11 @@ def worst_benefit(before, links_to_remove, before_eq_tstt):
             not_fixed = [link]
             test_net.not_fixed = set(not_fixed)
 
-            tstt = solve_UE(net=test_net)
+            tstt = solve_UE(net=test_net, relax=relax)
+
+            ##DEBUG
+            # if test_net.not_fixed == {'(2,6)', '(2,1)', '(17,19)', '(24,13)'}:
+            #     pdb.set_trace()
             memory[frozenset(test_net.not_fixed)] = tstt
 
             wb[link] = tstt - before_eq_tstt
@@ -1077,8 +1126,14 @@ def worst_benefit(before, links_to_remove, before_eq_tstt):
     return wb
 
 
-def best_benefit(after, links_to_remove, after_eq_tstt):
-    fname = after.save_dir + '/best_benefit_dict'
+def best_benefit(after, links_to_remove, after_eq_tstt, relax=False, bsearch=False):
+
+    ext_name = ''
+    if relax:
+        ext_name = '_relax'
+    if bsearch:
+        ext_name = '_bsearch'
+    fname = after.save_dir + '/best_benefit_dict' + ext_name
 
     if not os.path.exists(fname + extension):
         print('best benefit analysis is running ...')
@@ -1094,7 +1149,10 @@ def best_benefit(after, links_to_remove, after_eq_tstt):
             added = [link]
             not_fixed = set(to_visit).difference(set(added))
             test_net.not_fixed = set(not_fixed)
-            tstt_after = solve_UE(net=test_net)
+            tstt_after = solve_UE(net=test_net, relax=relax)
+            ##DEBUG
+            # if test_net.not_fixed == {'(2,6)', '(2,1)', '(17,19)', '(24,13)'}:
+            #     pdb.set_trace()
             memory[frozenset(test_net.not_fixed)] = tstt_after
 
             # seq_list.append(Node(link_id=link, parent=None, net=test_net, tstt_after=tstt_after,
@@ -1113,8 +1171,16 @@ def best_benefit(after, links_to_remove, after_eq_tstt):
     return bb
 
 
-def state_after(damaged_links, save_dir):
-    fname = save_dir + '/net_after'
+def state_after(damaged_links, save_dir, relax=False, real=False, bsearch=False):
+    ext_name = ''
+    if relax:
+        ext_name = '_relax'
+    if real:
+        ext_name = '_real'
+
+    if bsearch:
+        ext_name = '_bsearch'
+    fname = save_dir + '/net_after' + ext_name
     if not os.path.exists(fname + extension):
         net_after = create_network(NETFILE, TRIPFILE)
         try:
@@ -1124,7 +1190,10 @@ def state_after(damaged_links, save_dir):
             pdb.set_trace()
         net_after.not_fixed = set(damaged_links)
 
-        after_eq_tstt = solve_UE(net=net_after)
+        after_eq_tstt = solve_UE(net=net_after, relax=relax)
+        ##DEBUG
+        # if net_after.not_fixed == {'(2,6)', '(2,1)', '(17,19)', '(24,13)'}:
+        #     pdb.set_trace()
         memory[frozenset(net_after.not_fixed)] = after_eq_tstt
 
         save(fname, net_after)
@@ -1137,14 +1206,23 @@ def state_after(damaged_links, save_dir):
     return net_after, after_eq_tstt
 
 
-def state_before(damaged_links, save_dir):
-    fname = save_dir + '/net_before'
+def state_before(damaged_links, save_dir, relax=False, real=False, bsearch=False):
+    ext_name = ''
+    if relax:
+        ext_name = '_relax'
+    if real:
+        ext_name = '_real'
+
+    if bsearch:
+        ext_name = '_bsearch'
+
+    fname = save_dir + '/net_before' + ext_name
     if not os.path.exists(fname + extension):
 
         net_before = create_network(NETFILE, TRIPFILE)
         net_before.not_fixed = set([])
 
-        before_eq_tstt = solve_UE(net=net_before)
+        before_eq_tstt = solve_UE(net=net_before, relax=relax, flows=True)
         memory[frozenset(net_before.not_fixed)] = before_eq_tstt
 
         save(fname, net_before)
@@ -1156,8 +1234,7 @@ def state_before(damaged_links, save_dir):
 
     return net_before, before_eq_tstt
 
-
-def safety():
+def safety(wb, bb):
     for a_link in wb:
         if bb[a_link] < wb[a_link]:
             worst = bb[a_link]
@@ -1493,6 +1570,56 @@ def greedy_heuristic(net_after, after_eq_tstt, before_eq_tstt):
 def local_search(greedy_path):
     pass
 
+def get_wb(damaged_links, save_dir, approx, relax=False, bsearch=False):
+    net_after, after_eq_tstt = state_after(damaged_links, save_dir, relax=relax,  bsearch=bsearch)
+    net_before, before_eq_tstt = state_before(damaged_links, save_dir, relax=relax, bsearch=bsearch)
+
+    save(save_dir + '/damaged_dict', damaged_dict)
+
+    net_before.save_dir = save_dir
+    net_after.save_dir = save_dir
+
+    benefit_analysis_st = time.time()
+    wb = worst_benefit(net_before, damaged_links, before_eq_tstt, relax=relax, bsearch=bsearch)
+    bb = best_benefit(net_after, damaged_links, after_eq_tstt, relax=relax,  bsearch=bsearch)
+    wb, bb = safety(wb, bb)
+
+    print('approx', approx)
+    # approx solution
+    if approx:
+        model, meany, stdy = preprocessing(damaged_links, net_after)
+        approx_obj, approx_soln, approx_elapsed, approx_num_tap = brute_force(
+            net_after, after_eq_tstt, before_eq_tstt, is_approx=True)
+
+        print('approx obj: {}, approx path: {}'.format(
+            approx_obj, approx_soln))
+
+    start_node = Node(tstt_after=after_eq_tstt)
+    start_node.before_eq_tstt = before_eq_tstt
+    start_node.after_eq_tstt = after_eq_tstt
+    start_node.realized = 0
+    start_node.realized_u = 0
+    start_node.level = 0
+    start_node.visited, start_node.not_visited = set(
+        []), set(damaged_links)
+    start_node.fixed, start_node.not_fixed = set([]), set(damaged_links)
+
+
+    end_node = Node(tstt_before=before_eq_tstt, forward=False)
+    end_node.before_eq_tstt = before_eq_tstt
+    end_node.after_eq_tstt = after_eq_tstt
+    end_node.level = len(damaged_links)
+    
+    end_node.visited, end_node.not_visited = set([]), set(damaged_links)
+    
+    end_node.fixed, end_node.not_fixed = set(
+        damaged_links), set([])
+
+    start_node.relax = relax
+    end_node.relax = relax
+
+    return wb, bb, start_node, end_node, net_after, net_before, after_eq_tstt, before_eq_tstt, benefit_analysis_st
+
 
 if __name__ == '__main__':
 
@@ -1503,10 +1630,14 @@ if __name__ == '__main__':
     beam_search = args.beamsearch
     beam_k = int(args.beamk)
     graphing = args.graphing
-
+    scenario_file = args.scenario
+    before_after = args.onlybeforeafter
+    strength = args.strength
+    full = args.full 
     opt = True
 
     NETWORK = os.path.join(FOLDER, net_name)
+    JSONFILE = os.path.join(NETWORK, net_name.lower() + '.geojson')
     NETFILE = os.path.join(NETWORK, net_name + "_net.tntp")
     TRIPFILE = os.path.join(NETWORK, net_name + "_trips.tntp")
 
@@ -1522,67 +1653,122 @@ if __name__ == '__main__':
         get_sequence_graphs(NETWORK_DIR)
     else:
 
+        damaged_dict_ = get_broken_links(JSONFILE, scenario_file)
+        # num_broken = len(damaged_dict)
 
         if num_broken >= 8:
             opt = False
 
-        for rep in range(reps):
-            net = create_network(NETFILE, TRIPFILE)
-            all_links = [lnk for lnk in net.link]
-            damaged_links = np.random.choice(all_links, num_broken, replace=False)
-            repair_days = [net.link[a_link].length for a_link in damaged_links]
+        memory = {}    
+        net = create_network(NETFILE, TRIPFILE)
 
-            min_rd = min(repair_days)
-            max_rd = max(repair_days)
-            med_rd = np.median(repair_days)
-            damaged_dict = {}
+        all_links = damaged_dict_.keys()
+        print(len(damaged_dict_))
+        print(damaged_dict_)
+        damaged_links = np.random.choice(list(all_links), num_broken, replace=False)
+        # repair_days = [net.link[a_link].length for a_link in damaged_links]
+        removals = []
 
-            for a_link in damaged_links:
-                repair_days = net.link[a_link].length
-                if repair_days > med_rd:
-                    repair_days += (max_rd - repair_days) * 0.3
-                y = ((repair_days - min_rd) / (min_rd - max_rd)
-                     * (MIN_DAYS - MAX_DAYS) + MIN_DAYS)
-                mu = y
-                std = y * 0.3
-                damaged_dict[a_link] = np.random.normal(mu, std, 1)[0]
+        # net.not_fixed = set([])
+        # solve_UE(net=net)
+        # file_created = False
+        # f = 'flows.txt'
+        # st = time.time()
+        # while not file_created:
+        #     if os.path.exists(f):
+        #         file_created = True
 
-            ULT_SCENARIO_DIR = os.path.join(NETWORK_DIR, str(num_broken))
-            os.makedirs(ULT_SCENARIO_DIR, exist_ok=True)
+        #     if time.time()-st >10:
+        #         popen = subprocess.call(args, stdout=subprocess.DEVNULL)
 
-            repetitions = get_folders(ULT_SCENARIO_DIR)
+        #     if file_created:
+        #         with open(f, "r") as flow_file:
+        #             for line in flow_file.readlines():
+        #                 try:
+        #                     ij = str(line[:line.find(' ')])
+        #                     line = line[line.find(' '):].strip()
+        #                     flow = float(line[:line.find(' ')])
+        #                     line = line[line.find(' '):].strip()
+        #                     cost = float(line.strip())
+        #                     net.link[ij].flow = flow
+        #                     net.link[ij].cost = cost
+        #                 except:
+        #                     break
 
-            if len(repetitions) == 0:
-                max_rep = -1
-            else:
-                num_scenario = [int(i) for i in repetitions]
-                max_rep = max(num_scenario)
-            cur_scnario_num = max_rep + 1
+        #         os.remove('flows.txt')
 
-            ULT_SCENARIO_REP_DIR = os.path.join(
-                ULT_SCENARIO_DIR, str(cur_scnario_num))
+        # for ij in damaged_links:
+        #     if net.link[ij].flow == 0:
+        #         removals.append(ij)
 
-            os.makedirs(ULT_SCENARIO_REP_DIR, exist_ok=True)
 
+
+
+        # min_rd = min(repair_days)
+        # max_rd = max(repair_days)
+        # med_rd = np.median(repair_days)
+        damaged_dict = {}
+
+        for a_link in damaged_links:
+            if a_link in removals:
+                continue
+            damaged_dict[a_link] = damaged_dict_[a_link]
+            
+            # repair_days = net.link[a_link].length
+            # if repair_days > med_rd:
+            #     repair_days += (max_rd - repair_days) * 0.3
+            # y = ((repair_days - min_rd) / (min_rd - max_rd)
+            #      * (MIN_DAYS - MAX_DAYS) + MIN_DAYS)
+            # mu = y
+            # std = y * 0.3
+            # damaged_dict[a_link] = np.random.normal(mu, std, 1)[0]
+        
+        del damaged_dict_
+        print(len(damaged_dict))
+        num_broken = len(damaged_dict)
+
+        SCENARIO_DIR = os.path.join(NETWORK_DIR, strength)
+        ULT_SCENARIO_DIR = os.path.join(SCENARIO_DIR, str(num_broken))
+        os.makedirs(ULT_SCENARIO_DIR, exist_ok=True)
+
+        repetitions = get_folders(ULT_SCENARIO_DIR)
+
+        if len(repetitions) == 0:
+            max_rep = -1
+        else:
+            num_scenario = [int(i) for i in repetitions]
+            max_rep = max(num_scenario)
+        cur_scnario_num = max_rep + 1
+
+        ULT_SCENARIO_REP_DIR = os.path.join(
+            ULT_SCENARIO_DIR, str(cur_scnario_num))
+
+        os.makedirs(ULT_SCENARIO_REP_DIR, exist_ok=True)
+
+        damaged_links = damaged_dict.keys()
+        num_damaged = len(damaged_links)
+
+        save_dir = ULT_SCENARIO_REP_DIR
+
+
+
+        if before_after:
             damaged_links = damaged_dict.keys()
             num_damaged = len(damaged_links)
-
-            save_dir = ULT_SCENARIO_REP_DIR
-
             net_after, after_eq_tstt = state_after(damaged_links, save_dir)
             net_before, before_eq_tstt = state_before(damaged_links, save_dir)
+            t = PrettyTable()
+            t.title = net_name + ' with ' + str(num_broken) + ' broken bridges'
+            t.field_names = ['Before EQ TSTT', 'After EQ TSTT']
+            t.add_row([before_eq_tstt, after_eq_tstt])
+            print(t)
+        else:
 
-            save(save_dir + '/damaged_dict', damaged_dict)
+            wb, bb, start_node, end_node, net_after, net_before, after_eq_tstt, before_eq_tstt, benefit_analysis_st = get_wb(damaged_links, save_dir, approx, relax=False)
+            benefit_analysis_elapsed = time.time() - benefit_analysis_st
 
-            net_before.save_dir = save_dir
-            net_after.save_dir = save_dir
 
-            benefit_analysis_st = time.time()
-            wb = worst_benefit(net_before, damaged_links, before_eq_tstt)
-            bb = best_benefit(net_after, damaged_links, after_eq_tstt)
-            wb, bb = safety()
-
-            print('approx', approx)
+            
             # approx solution
             if approx:
                 model, meany, stdy = preprocessing(damaged_links, net_after)
@@ -1592,33 +1778,7 @@ if __name__ == '__main__':
                 print('approx obj: {}, approx path: {}'.format(
                     approx_obj, approx_soln))
 
-            start_node = Node(tstt_after=after_eq_tstt)
-            start_node.before_eq_tstt = before_eq_tstt
-            start_node.after_eq_tstt = after_eq_tstt
-            start_node.realized = 0
-            start_node.realized_u = 0
-            start_node.level = 0
-            start_node.visited, start_node.not_visited = set(
-                []), set(damaged_links)
-            start_node.fixed, start_node.not_fixed = set([]), set(damaged_links)
-            # start_node.net.fixed, start_node.net.not_fixed = set(
-            #     []), set(damaged_links)
-
-
-            end_node = Node(tstt_before=before_eq_tstt, forward=False)
-            end_node.before_eq_tstt = before_eq_tstt
-            end_node.after_eq_tstt = after_eq_tstt
-            end_node.level = len(damaged_links)
             
-            end_node.visited, end_node.not_visited = set([]), set(damaged_links)
-            
-            end_node.fixed, end_node.not_fixed = set(
-                damaged_links), set([])
-            
-            # end_node.net.fixed, end_node.net.not_fixed = set(
-                # damaged_links), set([])
-            
-            benefit_analysis_elapsed = time.time() - benefit_analysis_st
 
             ### Get greedy solution ###
             greedy_obj, greedy_soln, greedy_elapsed, greedy_num_tap = greedy_heuristic(
@@ -1639,75 +1799,92 @@ if __name__ == '__main__':
                 print('optimal obj: {}, optimal path: {}'.format(opt_obj, opt_soln))
 
             # feasible_soln_taps = num_damaged * (num_damaged + 1) / 2.0
-            memory1 = deepcopy(memory)
-            algo_num_tap = best_benefit_taps + worst_benefit_taps
-            best_ub = np.inf
+            if full: 
+                algo_num_tap = best_benefit_taps + worst_benefit_taps
+                best_ub = np.inf
 
-            fname = net_after.save_dir + '/algo_solution'
+                fname = save_dir + '/algo_solution'
 
-            if not os.path.exists(fname + extension):
-                search_start = time.time()
-                algo_path, algo_obj, search_tap_solved = search(
-                    start_node, end_node, best_ub)
-                search_elapsed = time.time() - search_start
+                if not os.path.exists(fname + extension):
+                    search_start = time.time()
+                    algo_path, algo_obj, search_tap_solved = search(
+                        start_node, end_node, best_ub)
+                    search_elapsed = time.time() - search_start
 
-                algo_num_tap += search_tap_solved
-                algo_elapsed = search_elapsed + benefit_analysis_elapsed
+                    net_after, after_eq_tstt = state_after(damaged_links, save_dir, real=True)
+                    net_before, before_eq_tstt = state_before(damaged_links, save_dir, real=True)
 
-                save(fname + '_obj', algo_obj)
-                save(fname + '_path', algo_path)
-                save(fname + '_num_tap', algo_num_tap)
-                save(fname + '_elapsed', algo_elapsed)
-            else:
-                algo_obj = load(fname + '_obj')
-                algo_path = load(fname + '_path')
-                algo_num_tap = load(fname + '_num_tap')
-                algo_elapsed = load(fname + '_elapsed')
 
-            print('Sequence found: {}, cost: {}, number of TAPs solved: {}, time elapsed: {}'.format(
-                algo_path, algo_obj, algo_num_tap, algo_elapsed))
+                    first_net = deepcopy(net_after)
+                    first_net.relax = False
+                    algo_obj, _, _ = eval_sequence(
+                        first_net, algo_path, after_eq_tstt, before_eq_tstt, damaged_dict=damaged_dict)
 
-            # algo with gap 1e-4
-            memory = deepcopy(memory1)
+                    algo_num_tap += search_tap_solved
+                    algo_elapsed = search_elapsed + benefit_analysis_elapsed
 
-            r_algo_num_tap = best_benefit_taps + worst_benefit_taps
-            best_bound = np.inf
 
-            fname = net_after.save_dir + '/r_algo_solution'
+                    save(fname + '_obj', algo_obj)
+                    save(fname + '_path', algo_path)
+                    save(fname + '_num_tap', algo_num_tap)
+                    save(fname + '_elapsed', algo_elapsed)
+                else:
+                    algo_obj = load(fname + '_obj')
+                    algo_path = load(fname + '_path')
+                    algo_num_tap = load(fname + '_num_tap')
+                    algo_elapsed = load(fname + '_elapsed')
 
-            start_node.relax = True
-            end_node.relax = True
+            # print('Sequence found: {}, cost: {}, number of TAPs solved: {}, time elapsed: {}'.format(
+            #     algo_path, algo_obj, algo_num_tap, algo_elapsed))
+            
+            # if not only_beam:
+            #     # algo with gap 1e-4
+            #     del memory
+            #     memory = {}
 
-            if not os.path.exists(fname + extension):
-                search_start = time.time()
-                r_algo_path, r_algo_obj, r_search_tap_solved = search(
-                    start_node, end_node, best_bound)
-                print(r_search_tap_solved)
-                net_after, after_eq_tstt = state_after(damaged_links, save_dir)
+            #     r_algo_num_tap = best_benefit_taps + worst_benefit_taps
+            #     best_bound = np.inf
 
-                first_net = deepcopy(net_after)
-                first_net.relax = False
-                r_algo_obj, _, _ = eval_sequence(
-                    first_net, r_algo_path, after_eq_tstt, before_eq_tstt, damaged_dict=damaged_dict)
+            #     fname = save_dir + '/r_algo_solution'
 
-                search_elapsed = time.time() - search_start
+            #     start_node.relax = True
+            #     end_node.relax = True
 
-                r_algo_num_tap += r_search_tap_solved
-                r_algo_elapsed = search_elapsed + benefit_analysis_elapsed
+            #     if not os.path.exists(fname + extension):
+            #         search_start = time.time()
+            #         r_algo_path, r_algo_obj, r_search_tap_solved = search(
+            #             start_node, end_node, best_bound)
+            #         search_elapsed = time.time() - search_start
 
-                save(fname + '_obj', r_algo_obj)
-                save(fname + '_path', r_algo_path)
-                save(fname + '_num_tap', r_algo_num_tap)
-                save(fname + '_elapsed', r_algo_elapsed)
-            else:
-                r_algo_obj = load(fname + '_obj')
-                r_algo_path = load(fname + '_path')
-                r_algo_num_tap = load(fname + '_num_tap')
-                r_algo_elapsed = load(fname + '_elapsed')
+            #         net_after, after_eq_tstt = state_after(damaged_links, save_dir, real=True)
+            #         net_before, before_eq_tstt = state_before(damaged_links, save_dir, real=True)
+
+            #         first_net = deepcopy(net_after)
+            #         first_net.relax = False
+            #         r_algo_obj, _, _ = eval_sequence(
+            #             first_net, r_algo_path, after_eq_tstt, before_eq_tstt, damaged_dict=damaged_dict)
+
+
+            #         r_algo_num_tap += r_search_tap_solved
+            #         r_algo_elapsed = search_elapsed + benefit_analysis_elapsed
+
+            #         save(fname + '_obj', r_algo_obj)
+            #         save(fname + '_path', r_algo_path)
+            #         save(fname + '_num_tap', r_algo_num_tap)
+            #         save(fname + '_elapsed', r_algo_elapsed)
+            #     else:
+            #         r_algo_obj = load(fname + '_obj')
+            #         r_algo_path = load(fname + '_path')
+            #         r_algo_num_tap = load(fname + '_num_tap')
+            #         r_algo_elapsed = load(fname + '_elapsed')
 
 
             if beam_search:
-                memory = deepcopy(memory1)
+                del memory
+                memory = {}
+
+                wb, bb, start_node, end_node, net_after, net_before, after_eq_tstt, before_eq_tstt, benefit_analysis_st = get_wb(damaged_links, save_dir, approx, relax=True, bsearch=True)
+                benefit_analysis_elapsed = time.time() - benefit_analysis_st
 
                 beamsearch_num_tap = best_benefit_taps + worst_benefit_taps
                 best_bound = np.inf
@@ -1721,15 +1898,16 @@ if __name__ == '__main__':
                     search_start = time.time()
                     beamsearch_path, beamsearch_obj, beamsearch_tap_solved = search(
                         start_node, end_node, best_bound, beam_search=beam_search, beam_k=beam_k)
+                    search_elapsed = time.time() - search_start
 
-                    net_after, after_eq_tstt = state_after(damaged_links, save_dir)
+                    net_after, after_eq_tstt = state_after(damaged_links, save_dir, real=True)
+                    net_before, before_eq_tstt = state_before(damaged_links, save_dir, real=True)
 
                     first_net = deepcopy(net_after)
                     first_net.relax = False
                     beamsearch_obj, _, _ = eval_sequence(
-                        first_net, r_algo_path, after_eq_tstt, before_eq_tstt, damaged_dict=damaged_dict)
+                        first_net, beamsearch_path, after_eq_tstt, before_eq_tstt, damaged_dict=damaged_dict)
 
-                    search_elapsed = time.time() - search_start
 
                     beamsearch_num_tap += beamsearch_tap_solved
                     beamsearch_elapsed = search_elapsed + benefit_analysis_elapsed
@@ -1747,7 +1925,7 @@ if __name__ == '__main__':
 
 
             t = PrettyTable()
-            t.title = 'SiouxFalls' + ' with ' + str(num_broken) + ' broken bridges'
+            t.title = net_name + ' with ' + str(num_broken) + ' broken bridges'
             t.field_names = ['Method', 'Objective', 'Run Time', '# TAP']
             if opt:
                 t.add_row(['OPTIMAL', opt_obj, opt_elapsed, opt_num_tap])
@@ -1755,10 +1933,22 @@ if __name__ == '__main__':
                 t.add_row(['APPROX', approx_obj, approx_elapsed, approx_num_tap])
             if beam_search:
                 t.add_row(['BeamSearch', beamsearch_obj, beamsearch_elapsed, beamsearch_num_tap])
-            t.add_row(['ALGORITHM', algo_obj, algo_elapsed, algo_num_tap])
-            t.add_row(['ALGORITHM_low_gap', r_algo_obj,
-                       r_algo_elapsed, r_algo_num_tap])
+            if full:
+                t.add_row(['ALGORITHM', algo_obj, algo_elapsed, algo_num_tap])
+            # t.add_row(['ALGORITHM_low_gap', r_algo_obj,
+            #            r_algo_elapsed, r_algo_num_tap])
             t.add_row(['GREEDY', greedy_obj, greedy_elapsed, greedy_num_tap])
             t.add_row(['IMPORTANCE', importance_obj,
                        importance_elapsed, importance_num_tap])
             print(t)
+
+            print('PATHS')
+
+            print('algorithm: ', algo_path)
+            print('---------------------------')
+            print('beamsearch: ', beamsearch_path)
+            print('---------------------------')
+            print('greedy: ', greedy_soln)
+            print('---------------------------')
+            print('importance factors: ', importance_soln)
+

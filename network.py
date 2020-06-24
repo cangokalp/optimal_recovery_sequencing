@@ -1122,9 +1122,14 @@ class Network:
                 # Set default parameters for metadata, then read
                 self.totalDemandCheck = None
 
+
+                multip=1
+                if demandFileName.find('Anaheim') >= 0:
+                    multip=10
+
                 metadata = utils.readMetadata(fileLines)
                 try:
-                    self.totalDemandCheck = float(metadata['TOTAL OD FLOW'])
+                    self.totalDemandCheck = multip*float(metadata['TOTAL OD FLOW'])
                     if self.numZones != None:
                         if self.numZones != int(metadata['NUMBER OF ZONES']):
                             print(
@@ -1163,7 +1168,7 @@ class Network:
                         destination = int(data[i * divme])
                         check = data[i * divme + 1]
                         demand = data[i * divme + 2]
-                        demand = float(demand[:len(demand) - 1])
+                        demand = multip*float(demand[:len(demand) - 1])
                         if check != ':':
                             print(
                                 "Demand data line not formatted properly:\n %s" % line)
@@ -1236,9 +1241,9 @@ class Network:
             self.numLinks = len(self.link)
         if self.totalDemandCheck != None:
             if self.totalDemand != self.totalDemandCheck:
-                print("Warning: Total demand is %f compared to metadata value %f" % (
-                    self.totalDemand, self.totalDemandCheck))
-
+                # print("Warning: Total demand is %f compared to metadata value %f" % (
+                    # self.totalDemand, self.totalDemandCheck))
+                pass
     def finalize(self):
         """
         Establish the forward and reverse star lists for nodes, initialize flows and
