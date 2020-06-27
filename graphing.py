@@ -4,6 +4,7 @@ import numpy as np
 import os
 from sequence_utils import *
 import matplotlib._color_data as mcd
+from scipy import stats
 
 
 def graph_current(tstt_state, days_state, before_eq_tstt, after_eq_tstt, path, plt_path, algo, together, place, color_dict):
@@ -146,9 +147,9 @@ def prep_dictionaries(method_dict):
     method_dict['_elapsed'] = []
 
 
-def result_table(reps, file_path, broken, sname):
+def result_table(reps, file_path, broken):
 
-    filenames = ['algo_solution', 'r_algo_solution', 'min_seq',
+    filenames = ['beamsearch_solution',
                  'greedy_solution', 'importance_factor_bound']
 
     heuristic = {}
@@ -156,18 +157,18 @@ def result_table(reps, file_path, broken, sname):
     greedy = {}
     brute_force = {}
     importance_factor = {}
+    beamsearch = {}
 
 
 
-
-    dict_list = [heuristic, r_heuristic, brute_force, greedy, importance_factor]
+    dict_list = [beamsearch, greedy, importance_factor]
     key_list = ['_obj', '_num_tap', '_elapsed']
 
     for method_dict in dict_list:
         prep_dictionaries(method_dict)
 
-    if int(broken) >= 8:
-        filenames[2] = 'algo_solution'
+    # if int(broken) >= 8:
+    #     filenames[2] = 'algo_solution'
 
     for rep in range(reps+1):
         for method_dict in dict_list:
@@ -186,16 +187,18 @@ def result_table(reps, file_path, broken, sname):
     tap_err = []
     elapsed_err = []
 
-    dict_list.remove(brute_force)
+    # dict_list.remove(brute_force)
 
-    optimal = deepcopy(np.array(brute_force['_obj']))
+    # optimal = deepcopy(np.array(brute_force['_obj']))
+    optimal = np.minimum(np.array(beamsearch['_obj']), np.array(greedy['_obj']))
+
 
     data = np.zeros((len(dict_list), 6))
 
     r = 0
 
-    if int(broken) == 10:
-        pdb.set_trace()
+    # if int(broken) == 10:
+    #     pdb.set_trace()
 
     for method_dict in dict_list:
         objs = np.array(method_dict['_obj'])
@@ -269,8 +272,8 @@ def result_table(reps, file_path, broken, sname):
 
     plt.ylabel('Normalized Metric Value')
     plt.xticks([(r + barWidth) for r in range(len(obj_means))],
-               ['ProposedMethod', 'RelaxMethod', 'GreedyMethod', 'ImportanceFactor'])
-    plt.title('Performance Comparison - ' + sname, fontsize=7)
+               ['ProposedMethod', 'RelaxMethod'])
+    # plt.title('Performance Comparison - ' + broken, fontsize=7)
     if broken != 10:
         txt = "# Broken Links: " + \
             str(broken) + ".\n Averaged over: " + \
@@ -286,7 +289,7 @@ def result_table(reps, file_path, broken, sname):
 
     columns = ('Avg Rel Gap', 'Delta', 'Avg Tap Solved',
                'Delta', 'Avg Elapsed(s)', 'Delta')
-    rows = ['PM', 'RM', 'GM', 'IF']
+    rows = ['M', 'RM']#] 'GM', 'IF']
 
     plt.close()
 
@@ -337,7 +340,10 @@ def result_sequence_graphs(rep, save_dir):
     if opt:
         opt_soln = load(path_pre + 'min_seq_path')
 
-    algo_path = load(path_pre + 'algo_solution_path')
+    # algo_path = load(path_pre + 'algo_solution_path')
+    # algo_r_path = load(path_pre + 'r_algo_solution_path')
+    algo_path = load(path_pre + 'beamsearch_solution_path')
+
     greedy_soln = load(path_pre + 'greedy_solution_path')
     importance_soln = load(path_pre + 'importance_factor_bound_path')
     after_eq_tstt = load(path_pre + 'net_after_tstt')
@@ -353,14 +359,11 @@ def result_sequence_graphs(rep, save_dir):
                  'GreedyMethod', 'ImportanceFactor']
         places = [221, 222, 223, 224]
     else:
-        # paths = [algo_path, greedy_soln, importance_soln]
-        paths = [algo_path, importance_soln]
+        paths = [algo_path, greedy_soln, importance_soln]
 
-        # names = ['ProposedMethod', 'GreedyMethod', 'ImportanceFactor']
-        names = ['ProposedMethod', 'ImportanceFactor']
+        names = ['ProposedMethod', 'GreedyMethod', 'ImportanceFactor']
 
-        # places = [221, 222, 223]
-        places = [121, 122]
+        places = [221, 222, 223]
 
 
 
@@ -407,28 +410,27 @@ def get_folders(path):
     return folders
 
 
-def get_tables(snames):
+def get_tables(directory):
 
-    for sname in snames:
 
-        SCENARIO_DIR = os.path.join(NETWORK_DIR, sname)
+    SCENARIO_DIR = directory
 
-        try:
-            broken_bridges = get_folders(SCENARIO_DIR)
-        except:
+    try:
+        broken_bridges = get_folders(SCENARIO_DIR)
+    except:
+        return
+
+    for broken in broken_bridges:
+
+        ULT_SCENARIO_DIR = os.path.join(SCENARIO_DIR, broken)
+        repetitions = get_folders(ULT_SCENARIO_DIR)
+
+        if len(repetitions) == 0:
             return
 
-        for broken in broken_bridges:
-
-            ULT_SCENARIO_DIR = os.path.join(SCENARIO_DIR, broken)
-            repetitions = get_folders(ULT_SCENARIO_DIR)
-
-            if len(repetitions) == 0:
-                return
-
-            reps = [int(i) for i in repetitions]
-            max_reps = max(reps)
-            result_table(max_reps, ULT_SCENARIO_DIR, broken, sname)
+        reps = [int(i) for i in repetitions]
+        max_reps = max(reps)
+        result_table(max_reps, ULT_SCENARIO_DIR, broken)
 
 
 def get_sequence_graphs(directory):
