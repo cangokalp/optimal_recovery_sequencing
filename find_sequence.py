@@ -46,7 +46,8 @@ parser.add_argument('-y', '--onlybeforeafter', type=bool,
                     help='to get before and after tstt', default=False)
 parser.add_argument('-f', '--full', type=bool,
                     help='to use full algo not beam search', default=False)
-
+parser.add_argument('-j', '--random', type=bool,
+                    help='generate scenarios randomly', default=False)
 
 args = parser.parse_args()
 
@@ -1040,6 +1041,10 @@ def search(start_node, end_node, best_ub, beam_search=False, beam_k=None):
             if beam_search:
                 open_list_b, open_list_f, closed_list_b, closed_list_b_g, closed_list_f, closed_list_f_g = purge(open_list_b, open_list_f, closed_list_b, closed_list_b_g, closed_list_f, closed_list_f_g, max_level_f, max_level_b, beam_k)
 
+        if iter_count % 100 == 0:
+            print('length of forward open list: ', len(open_list_f))
+            print('length of backwards open list: ', len(open_list_b))
+
         # check termination
         if len(open_list_b) > 0:
             current_node = open_list_b[0]
@@ -1605,7 +1610,8 @@ if __name__ == '__main__':
     scenario_file = args.scenario
     before_after = args.onlybeforeafter
     strength = args.strength
-    full = args.full 
+    full = args.full
+    random_gen = args.random
     opt = True
 
     NETWORK = os.path.join(FOLDER, net_name)
@@ -1861,14 +1867,13 @@ if __name__ == '__main__':
 
                 fname = save_dir + '/beamsearch_solution'
 
-                start_node.relax = False
-                end_node.relax = False
+                start_node.relax = True
+                end_node.relax = True
 
                 if not os.path.exists(fname + extension):
                     search_start = time.time()
                     beamsearch_path, beamsearch_obj, beamsearch_tap_solved = search(
                         start_node, end_node, best_bound, beam_search=beam_search, beam_k=beam_k)
-                    pdb.set_trace()
                     search_elapsed = time.time() - search_start + importance_elapsed
 
                     net_after, after_eq_tstt = state_after(damaged_links, save_dir, real=True)
