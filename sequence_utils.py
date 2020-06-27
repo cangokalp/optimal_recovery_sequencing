@@ -5,12 +5,20 @@ import shlex
 import subprocess
 import shutil
 import pdb
-from network import *
 import pandas as pd
 import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
+import time
 
+class Network:
+    def __init__(self, networkFile="", demandFile=""):
+        """
+        Class initializer; if both a network file and demand file are specified,
+        will read these files to fill the network data structure.
+        """
+        self.netfile = networkFile
+        self.tripfile = demandFile
 
 def save(fname, data, extension='pickle'):
     path = fname + "." + extension
@@ -39,11 +47,9 @@ def save_fig(plt_path, algo, tight_layout=True, fig_extension="png", resolution=
     plt.savefig(path, format=fig_extension, dpi=resolution)
 
 
-def create_network(netfile=None, tripfile=None, odmultip=1):
+def create_network(netfile=None, tripfile=None):
 
     net = Network(netfile, tripfile)
-    net.netfile = netfile
-    net.tripfile = tripfile
     return net
 
 
@@ -72,6 +78,7 @@ def net_update(net, args, flows=False):
             if time.time()-st >10:
                 popen = subprocess.call(args, stdout=subprocess.DEVNULL)
 
+            net.link = {}
             if file_created:
                 with open(f, "r") as flow_file:
                     for line in flow_file.readlines():
@@ -81,8 +88,10 @@ def net_update(net, args, flows=False):
                             flow = float(line[:line.find(' ')])
                             line = line[line.find(' '):].strip()
                             cost = float(line.strip())
-                            net.link[ij].flow = flow
-                            net.link[ij].cost = cost
+                            net.link[ij] = {}
+
+                            net.link[ij]['flow'] = flow
+                            net.link[ij]['cost'] = cost
                         except:
                             break
 
@@ -203,7 +212,6 @@ def eval_sequence(net, order_list, after_eq_tstt, before_eq_tstt, if_list=None, 
     for link_id in order_list:
         level += 1
         days_list.append(damaged_dict[link_id])
-        net.link[link_id].add_link_back()
         added.append(link_id)
         not_fixed = set(to_visit).difference(set(added))
         net.not_fixed = set(not_fixed)

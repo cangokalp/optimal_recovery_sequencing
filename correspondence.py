@@ -3,7 +3,6 @@ import json
 import numpy as np
 import pdb
 import math
-from network import *
 
 def distance(origin, destination):
     lon1, lat1 = origin
