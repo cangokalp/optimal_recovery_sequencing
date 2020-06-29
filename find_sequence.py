@@ -1688,7 +1688,10 @@ if __name__ == '__main__':
 
                         os.remove('flows.txt')
 
+
                 all_links = [lnk for lnk in net.link.keys()]
+                all_links = sorted(all_links)
+                np.random.seed(rep)
                 damaged_links = np.random.choice(all_links, num_broken, replace=False)
                 repair_days = [net.link[a_link]['flow'] for a_link in damaged_links]
 
@@ -1705,6 +1708,7 @@ if __name__ == '__main__':
                          * (MIN_DAYS - MAX_DAYS) + MIN_DAYS)
                     mu = y
                     std = y * 0.3
+
                     damaged_dict[a_link] = np.random.normal(mu, std, 1)[0]
 
                 SCENARIO_DIR = NETWORK_DIR
