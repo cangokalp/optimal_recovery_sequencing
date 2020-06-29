@@ -1630,7 +1630,7 @@ if __name__ == '__main__':
     full = args.full
     rand_gen = args.random
     opt = True
-    np.ramdom.seed(9)
+    np.random.seed(9)
 
     NETWORK = os.path.join(FOLDER, net_name)
     JSONFILE = os.path.join(NETWORK, net_name.lower() + '.geojson')
