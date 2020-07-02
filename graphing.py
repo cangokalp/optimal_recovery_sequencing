@@ -122,7 +122,7 @@ def graph_current(tstt_state, days_state, before_eq_tstt, after_eq_tstt, path, p
 
 
     ###
-    # plt.title(algo, fontsize=16)
+    plt.title(algo, fontsize=16)
     plt.legend(loc='upper right', fontsize=14)
 
     if not together:
@@ -149,7 +149,7 @@ def prep_dictionaries(method_dict):
 
 def result_table(reps, file_path, broken):
 
-    filenames = ['beamsearch_solution',
+    filenames = ['beamsearch_solution', 'r_algo_solution',
                  'greedy_solution', 'importance_factor_bound']
 
     heuristic = {}
@@ -157,11 +157,11 @@ def result_table(reps, file_path, broken):
     greedy = {}
     brute_force = {}
     importance_factor = {}
-    beamsearch = {}
+    # beamsearch = {}
 
 
 
-    dict_list = [beamsearch, greedy, importance_factor]
+    dict_list = [heuristic, r_heuristic, greedy, importance_factor]
     key_list = ['_obj', '_num_tap', '_elapsed']
 
     for method_dict in dict_list:
@@ -190,7 +190,7 @@ def result_table(reps, file_path, broken):
     # dict_list.remove(brute_force)
 
     # optimal = deepcopy(np.array(brute_force['_obj']))
-    optimal = np.minimum(np.array(beamsearch['_obj']), np.array(greedy['_obj']))
+    optimal = np.minimum(np.array(heuristic['_obj']), np.array(greedy['_obj']))
 
 
     data = np.zeros((len(dict_list), 6))
@@ -272,7 +272,7 @@ def result_table(reps, file_path, broken):
 
     plt.ylabel('Normalized Metric Value')
     plt.xticks([(r + barWidth) for r in range(len(obj_means))],
-               ['ProposedMethod', 'RelaxMethod'])
+               ['M', 'RM', 'GM', 'IF'])
     # plt.title('Performance Comparison - ' + broken, fontsize=7)
     if broken != 10:
         txt = "# Broken Links: " + \
@@ -289,7 +289,7 @@ def result_table(reps, file_path, broken):
 
     columns = ('Avg Rel Gap', 'Delta', 'Avg Tap Solved',
                'Delta', 'Avg Elapsed(s)', 'Delta')
-    rows = ['M', 'RM']#] 'GM', 'IF']
+    rows = ['M', 'RM', 'GM', 'IF']
 
     plt.close()
 
@@ -340,8 +340,7 @@ def result_sequence_graphs(rep, save_dir):
     if opt:
         opt_soln = load(path_pre + 'min_seq_path')
 
-    # algo_path = load(path_pre + 'algo_solution_path')
-    # algo_r_path = load(path_pre + 'r_algo_solution_path')
+    algo_r_path = load(path_pre + 'r_algo_solution_path')
     algo_path = load(path_pre + 'beamsearch_solution_path')
 
     greedy_soln = load(path_pre + 'greedy_solution_path')
@@ -359,13 +358,11 @@ def result_sequence_graphs(rep, save_dir):
                  'GreedyMethod', 'ImportanceFactor']
         places = [221, 222, 223, 224]
     else:
-        paths = [algo_path, greedy_soln, importance_soln]
+        paths = [algo_path, algo_r_path, greedy_soln, importance_soln]
 
-        names = ['ProposedMethod', 'GreedyMethod', 'ImportanceFactor']
+        names = ['ProposedMethod', 'RelaxedMethod', 'GreedyMethod', 'ImportanceFactor']
 
-        places = [221, 222, 223]
-
-
+        places = [221, 222, 223, 224]
 
 
     colors = plt.cm.ocean(np.linspace(0, 0.7, len(algo_path)))
@@ -416,21 +413,29 @@ def get_tables(directory):
     SCENARIO_DIR = directory
 
     try:
-        broken_bridges = get_folders(SCENARIO_DIR)
+        brokens = get_folders(SCENARIO_DIR)
     except:
         return
 
-    for broken in broken_bridges:
-
-        ULT_SCENARIO_DIR = os.path.join(SCENARIO_DIR, broken)
-        repetitions = get_folders(ULT_SCENARIO_DIR)
-
-        if len(repetitions) == 0:
+    pdb.set_trace()
+    for broken in brokens:
+        try:
+            B_DIR = os.path.join(SCENARIO_DIR, broken)
+            ks = get_folders(B_DIR)
+        except:
             return
 
-        reps = [int(i) for i in repetitions]
-        max_reps = max(reps)
-        result_table(max_reps, ULT_SCENARIO_DIR, broken)
+        for k in ks:
+
+            ULT_SCENARIO_DIR = os.path.join(B_DIR, k)
+            repetitions = get_folders(ULT_SCENARIO_DIR)
+
+            if len(repetitions) == 0:
+                return
+
+            reps = [int(i) for i in range(len(repetitions))]
+            max_reps = max(reps)
+            result_table(max_reps, ULT_SCENARIO_DIR, broken)
 
 
 def get_sequence_graphs(directory):
