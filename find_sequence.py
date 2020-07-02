@@ -1619,7 +1619,7 @@ if __name__ == '__main__':
     approx = args.approx
     reps = args.reps
     beam_search = args.beamsearch
-    beam_k = int(args.beamk)
+    # beam_k = int(args.beamk)
     graphing = args.graphing
     scenario_file = args.scenario
     before_after = args.onlybeforeafter
@@ -1798,7 +1798,7 @@ if __name__ == '__main__':
 
 
                     if beam_search:
-                        ks = [2,3,8,16]
+                        ks = [2,4,8,16]
 
                         for k in ks:
 
@@ -1821,7 +1821,7 @@ if __name__ == '__main__':
                             if not os.path.exists(fname + extension):
                                 search_start = time.time()
                                 beamsearch_path, beamsearch_obj, beamsearch_tap_solved, tot_childbs, uncommon_numberbs, common_numberbs, num_purgebs = search(
-                                    start_node, end_node, best_bound, beam_search=beam_search, beam_k=beam_k)
+                                    start_node, end_node, best_bound, beam_search=beam_search, beam_k=k)
                                 search_elapsed = time.time() - search_start + importance_elapsed
 
                                 net_after, after_eq_tstt = state_after(damaged_links, save_dir, real=True)
@@ -1872,7 +1872,7 @@ if __name__ == '__main__':
                             if not os.path.exists(fname + extension):
                                 search_start = time.time()
                                 r_algo_path, r_algo_obj, r_search_tap_solved, tot_childr, uncommon_numberr, common_numberr, num_purger = search(
-                                    start_node, end_node, best_bound, beam_search=beam_search, beam_k=beam_k)
+                                    start_node, end_node, best_bound, beam_search=beam_search, beam_k=k)
                                 search_elapsed = time.time() - search_start + importance_elapsed
 
                                 net_after, after_eq_tstt = state_after(damaged_links, save_dir, real=True)
