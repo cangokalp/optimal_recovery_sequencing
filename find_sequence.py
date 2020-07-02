@@ -1693,23 +1693,24 @@ if __name__ == '__main__':
                 all_links = sorted(all_links)
                 np.random.seed(rep)
                 damaged_links = np.random.choice(all_links, num_broken, replace=False)
-                repair_days = [net.link[a_link]['flow'] for a_link in damaged_links]
+           #     repair_days = [net.link[a_link]['flow'] for a_link in damaged_links]
 
-                min_rd = min(repair_days)
-                max_rd = max(repair_days)
-                med_rd = np.median(repair_days)
+          #      min_rd = min(repair_days)
+         #       max_rd = max(repair_days)
+        #        med_rd = np.median(repair_days)
                 damaged_dict = {}
 
                 for a_link in damaged_links:
-                    repair_days = net.link[a_link]['flow']
-                    if repair_days > med_rd:
-                        repair_days += (max_rd - repair_days) * 0.3
-                    y = ((repair_days - min_rd) / (min_rd - max_rd)
-                         * (MIN_DAYS - MAX_DAYS) + MIN_DAYS)
-                    mu = y
-                    std = y * 0.3
+       #             repair_days = net.link[a_link]['flow']
+      #              if repair_days > med_rd:
+     #                   repair_days += (max_rd - repair_days) * 0.3
+    #                y = ((repair_days - min_rd) / (min_rd - max_rd)
+   #                      * (MIN_DAYS - MAX_DAYS) + MIN_DAYS)
+  #                  mu = y
+ #                   std = y * 0.3
 
-                    damaged_dict[a_link] = np.random.normal(mu, std, 1)[0]
+#                    damaged_dict[a_link] = np.random.normal(mu, std, 1)[0]
+                    damaged_dict[a_link] = np.random.uniform(5, 120, 1)[0]
 
                 SCENARIO_DIR = NETWORK_DIR
                 ULT_SCENARIO_DIR = os.path.join(SCENARIO_DIR, str(num_broken))
