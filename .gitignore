@@ -3,7 +3,7 @@ __pycache__/
 # ignore DS_Store
 .DS_Store
 # ignore pickle files
-*.pickle
+#*.pickle
 # ignore python cache files
 *.pyc
 # ignore saved runs
