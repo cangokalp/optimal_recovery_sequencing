@@ -156,9 +156,11 @@ def solve_UE(net=None, relax=False, eval_seq=False, flows=False):
         home = a_link[a_link.find("'(") + 2:a_link.find(",")]
         to = a_link[a_link.find(",") + 1:]
         to = to[:to.find(")")]
-
-        ind = df[(df['Unnamed: 1'] == str(home)) & (
-            df['Unnamed: 2'] == str(to))].index.tolist()[0]
+        try:
+            ind = df[(df['Unnamed: 1'] == str(home)) & (
+                df['Unnamed: 2'] == str(to))].index.tolist()[0]
+        except:
+            pdb.set_trace()
         df.loc[ind, 'Unnamed: 5'] = 1e8
 
     df.to_csv('current_net.tntp', index=False, sep="\t")
