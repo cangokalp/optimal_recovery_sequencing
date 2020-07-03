@@ -914,6 +914,7 @@ def expand_backward(start_node, end_node, open_list_b, open_list_f, closed_list_
 def purge(open_list_b, open_list_f, closed_list_b, closed_list_b_g, closed_list_f, closed_list_f_g, max_level_f, max_level_b, beam_k, num_purged):
 
     keep_f =[]
+    not_kept = []
     if max_level_f > 2:
         values_ofn = np.ones((beam_k, max_level_f - 2)) * np.inf
         indices_ofn = np.ones((beam_k, max_level_f - 2)) * np.inf
@@ -948,6 +949,7 @@ def purge(open_list_b, open_list_f, closed_list_b, closed_list_b_g, closed_list_
     num_purged += len(not_kept)
 
     keep_b =[]
+    not_kept = []
     max_level_b = len(damaged_dict) - max_level_b
 
     if max_level_b > 3:
@@ -1693,7 +1695,7 @@ if __name__ == '__main__':
                 damaged_dict = {}
 
                 for a_link in damaged_links:
-                    damaged_dict[a_link] = np.random.uniform(5, 120, 1)[0]
+                    damaged_dict[a_link] = np.random.uniform(5, 150, 1)[0]
 
                 SCENARIO_DIR = NETWORK_DIR
                 ULT_SCENARIO_DIR = os.path.join(SCENARIO_DIR, str(num_broken))
