@@ -1055,11 +1055,6 @@ def search(start_node, end_node, best_ub, beam_search=False, beam_k=None):
                 start_node, end_node, open_list_b, open_list_f, closed_list_b, closed_list_f, closed_list_b_g, best_ub, best_feasible_soln, num_tap_solved, front_to_end=False, uncommon_number=uncommon_number, tot_child=tot_child, common_number=common_number)
             max_level_b = max(max_level_b, level_b)
 
-        if iter_count % 10 == 0:
-            # print('length of forward open list: ', len(open_list_f))
-            # print('length of backwards open list: ', len(open_list_b))
-            if beam_search:
-                open_list_b, open_list_f, closed_list_b, closed_list_b_g, closed_list_f, closed_list_f_g, num_purged = purge(open_list_b, open_list_f, closed_list_b, closed_list_b_g, closed_list_f, closed_list_f_g, max_level_f, max_level_b, beam_k, num_purged)
 
         # if iter_count % 100 == 0:
         #     print('length of forward open list: ', len(open_list_f))
@@ -1083,9 +1078,16 @@ def search(start_node, end_node, best_ub, beam_search=False, beam_k=None):
         if max(kf, kb) >= best_ub and best_feasible_soln.path is not None:
             return best_feasible_soln.path, best_feasible_soln.g, num_tap_solved, tot_child, uncommon_number, common_number, num_purged
 
-        if  len(open_list_f) == 0 or len(open_list_b) == 0:
+        if  (len(open_list_f) == 0 or len(open_list_b) == 0) and best_feasible_soln.path is not None:
             return best_feasible_soln.path, best_feasible_soln.g, num_tap_solved, tot_child, uncommon_number, common_number, num_purged
 
+        if iter_count % 10 == 0:
+            # print('length of forward open list: ', len(open_list_f))
+            # print('length of backwards open list: ', len(open_list_b))
+            if beam_search:
+                open_list_b, open_list_f, closed_list_b, closed_list_b_g, closed_list_f, closed_list_f_g, num_purged = purge(
+                    open_list_b, open_list_f, closed_list_b, closed_list_b_g, closed_list_f, closed_list_f_g,
+                    max_level_f, max_level_b, beam_k, num_purged)
 
         bar.update(iter_count)
     if best_feasible_soln.path is None:
@@ -1678,24 +1680,28 @@ if __name__ == '__main__':
                                     flow = float(line[:line.find(' ')])
                                     line = line[line.find(' '):].strip()
                                     cost = float(line.strip())
-                                    net.link[ij] = {}
 
-                                    net.link[ij]['flow'] = flow
-                                    net.link[ij]['cost'] = cost
+
+                                    if flow != 0.0 and cost != 9999.0:
+                                        net.link[ij] = {}
+                                        net.link[ij] = flow
                                 except:
                                     break
-
                         os.remove('flows.txt')
 
+                import operator
+                sorted_d = sorted(net.link.items(), key=operator.itemgetter(1))[::-1]
+                sorted_d = sorted_d[:100]
+                all_links = [lnk[0] for lnk in sorted_d]
+                # all_links = [lnk for lnk in net.link.keys()]
 
-                all_links = [lnk for lnk in net.link.keys()]
                 all_links = sorted(all_links)
                 np.random.seed(rep)
                 damaged_links = np.random.choice(all_links, num_broken, replace=False)
                 damaged_dict = {}
 
                 for a_link in damaged_links:
-                    damaged_dict[a_link] = np.random.uniform(5, 150, 1)[0]
+                    damaged_dict[a_link] = np.random.uniform(10, 120, 1)[0]
 
                 SCENARIO_DIR = NETWORK_DIR
                 ULT_SCENARIO_DIR = os.path.join(SCENARIO_DIR, str(num_broken))
@@ -1800,7 +1806,7 @@ if __name__ == '__main__':
 
 
                     if beam_search:
-                        ks = [2,4,8,16]
+                        ks = [2,4,8,16,32]
 
                         for k in ks:
 
