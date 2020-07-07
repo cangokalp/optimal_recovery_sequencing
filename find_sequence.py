@@ -146,8 +146,8 @@ def get_successors_f(node):
     if node.level != 0:
         tail = node.path[-1]
         for a_link in not_visited:
-            if wb[a_link] * damaged_dict[tail] - bb[tail] * damaged_dict[a_link] > 0:
-                continue
+            # if wb[a_link] * damaged_dict[tail] - bb[tail] * damaged_dict[a_link] > 0:
+            #     continue
             successors.append(a_link)
     else:
         successors = not_visited
@@ -168,8 +168,8 @@ def get_successors_b(node):
 
             # if wb[tail] * node.damaged_dict[a_link] - bb[a_link] *
             # node.damaged_dict[tail] > 0:
-            if -wb[tail] * damaged_dict[a_link] + bb[a_link] * damaged_dict[tail] < 0:
-                continue
+            # if -wb[tail] * damaged_dict[a_link] + bb[a_link] * damaged_dict[tail] < 0:
+            #     continue
             successors.append(a_link)
     else:
         successors = not_visited
@@ -599,7 +599,7 @@ def set_bounds_bib(node, open_list_f, start_node, front_to_end=True, best_feasib
     return uncommon_number, common_number
 
 
-def expand_forward(start_node, end_node, open_list_b, open_list_f, closed_list_b, closed_list_f, closed_list_f_g, best_ub, best_feasible_soln, num_tap_solved, front_to_end=False, uncommon_number=0, tot_child=0, common_number=0):
+def expand_forward(start_node, end_node, open_list_b, open_list_f, closed_list_b, closed_list_f, best_ub, best_feasible_soln, num_tap_solved, front_to_end=False, uncommon_number=0, tot_child=0, common_number=0):
     debug = False
     # print('in forward search')
 
@@ -613,13 +613,12 @@ def expand_forward(start_node, end_node, open_list_b, open_list_f, closed_list_b
 
     # Pop current off open list, add to closed list
     open_list_f.pop(current_index)
-    closed_list_f.append(current_node.fixed)
-    closed_list_f_g.append(current_node.g)
+    closed_list_f.append(current_node)
 
     if current_node.level >= 2:
         cur_visited = current_node.visited
-        # for other_end in open_list_b + closed_list_b:
-        for other_end in open_list_b:
+        for other_end in open_list_b + closed_list_b:
+        # for other_end in open_list_b:
 
             if len(set(other_end.visited).intersection(set(cur_visited))) == 0 and len(damaged_dict) - len(set(other_end.visited).union(set(cur_visited))) == 1:
                 lo_link = set(damaged_dict.keys()).difference(
@@ -634,20 +633,21 @@ def expand_forward(start_node, end_node, open_list_b, open_list_f, closed_list_b
                 if cur_soln <= best_feasible_soln.g:
                     best_feasible_soln.g = cur_soln
                     best_feasible_soln.path = cur_path
-                    print(current_node.visited)
-                    print('-------BEST_SOLN-----: ', best_feasible_soln.g)
-                    print(best_feasible_soln.path)
+                    # print(current_node.visited)
+                    # print('-------BEST_SOLN-----: ', best_feasible_soln.g)
+                    # print(best_feasible_soln.path)
+
 
             if set(other_end.not_visited) == set(cur_visited):
                 cur_soln = current_node.g + other_end.g
                 cur_path = current_node.path + other_end.path[::-1]
                 if cur_soln <= best_feasible_soln.g:
-                    print(current_node.visited)
+                    # print(current_node.visited)
 
                     best_feasible_soln.g = cur_soln
                     best_feasible_soln.path = cur_path
-                    print('-------BEST_SOLN-----: ', best_feasible_soln.g)
-                    print(best_feasible_soln.path)
+                    # print('-------BEST_SOLN-----: ', best_feasible_soln.g)
+                    # print(best_feasible_soln.path)
 
     if best_feasible_soln.g < best_ub:
         best_ub = best_feasible_soln.g
@@ -655,11 +655,11 @@ def expand_forward(start_node, end_node, open_list_b, open_list_f, closed_list_b
     # Found the goal
     if current_node == end_node:
         # print('at the end_node')
-        return open_list_f, closed_list_f, closed_list_f_g, best_ub, best_feasible_soln, num_tap_solved, current_node.level, tot_child, uncommon_number, common_number
+        return open_list_f, closed_list_f, best_ub, best_feasible_soln, num_tap_solved, current_node.level, tot_child, uncommon_number, common_number
 
     if current_node.f > best_feasible_soln.g or current_node.f > best_ub:
         # print('current node is pruned')
-        return open_list_f, closed_list_f, closed_list_f_g, best_ub, best_feasible_soln, num_tap_solved, current_node.level, tot_child, uncommon_number, common_number
+        return open_list_f, closed_list_f, best_ub, best_feasible_soln, num_tap_solved, current_node.level, tot_child, uncommon_number, common_number
 
     # Generate children
     eligible_expansions = get_successors_f(current_node)
@@ -738,17 +738,20 @@ def expand_forward(start_node, end_node, open_list_b, open_list_f, closed_list_b
 
         for open_node in removal:
             open_list_f.remove(open_node)
-            closed_list_f.append(open_node.fixed)
-            closed_list_f_g.append(open_node.g)
-            del open_node
+            closed_list_f.append(open_node)
 
         # Child is on the closed list
         if add:
-            for idx, closed_node_fixed in enumerate(closed_list_f):
-                if child.fixed == closed_node_fixed:
-                    if child.g > closed_list_f_g[idx]:
+            for closed_node in closed_list_f:
+                if child.fixed == closed_node.fixed:
+                    if child.g >= closed_node.g:
                         add = False
                         break
+            # for idx, closed_node_fixed in enumerate(closed_list_f):
+            #     if child.fixed == closed_node_fixed:
+            #         if child.g > closed_list_f_g[idx]:
+            #             add = False
+            #             break
 
 
         if add:
@@ -757,10 +760,10 @@ def expand_forward(start_node, end_node, open_list_b, open_list_f, closed_list_b
         else:
             del child
 
-    return open_list_f, closed_list_f, closed_list_f_g, best_ub, best_feasible_soln, num_tap_solved, current_level, tot_child, uncommon_number, common_number
+    return open_list_f, closed_list_f, best_ub, best_feasible_soln, num_tap_solved, current_level, tot_child, uncommon_number, common_number
 
 
-def expand_backward(start_node, end_node, open_list_b, open_list_f, closed_list_b, closed_list_f, closed_list_b_g, best_ub, best_feasible_soln, num_tap_solved, front_to_end=False, uncommon_number=0, tot_child=0, common_number=0):
+def expand_backward(start_node, end_node, open_list_b, open_list_f, closed_list_b, closed_list_f, best_ub, best_feasible_soln, num_tap_solved, front_to_end=False, uncommon_number=0, tot_child=0, common_number=0):
 
     # Loop until you find the end
     current_node = open_list_b[0]
@@ -773,13 +776,12 @@ def expand_backward(start_node, end_node, open_list_b, open_list_f, closed_list_
 
     # Pop current off open list, add to closed list
     open_list_b.pop(current_index)
-    closed_list_b.append(current_node.fixed)
-    closed_list_b_g.append(current_node.g)
+    closed_list_b.append(current_node)
 
     if len(current_node.visited) >= 2:
         cur_visited = current_node.visited
-        # for other_end in open_list_f + closed_list_f:
-        for other_end in open_list_f:
+        for other_end in open_list_f + closed_list_f:
+        # for other_end in open_list_f:
 
             if len(set(other_end.visited).intersection(set(cur_visited))) == 0 and len(damaged_dict) - len(set(other_end.visited).union(set(cur_visited))) == 1:
                 lo_link = set(damaged_dict.keys()).difference(
@@ -793,10 +795,10 @@ def expand_backward(start_node, end_node, open_list_b, open_list_f, closed_list_
                     best_feasible_soln.g = cur_soln
                     best_feasible_soln.path = other_end.path + \
                         [str(lo_link)] + current_node.path[::-1]
-                    print(current_node.visited)
-
-                    print('-------BEST_SOLN-----: ', best_feasible_soln.g)
-                    print(best_feasible_soln.path)
+                    # print(current_node.visited)
+                    #
+                    # print('-------BEST_SOLN-----: ', best_feasible_soln.g)
+                    # print(best_feasible_soln.path)
 
             elif set(other_end.not_visited) == set(cur_visited):
                 cur_soln = current_node.g + other_end.g
@@ -805,10 +807,10 @@ def expand_backward(start_node, end_node, open_list_b, open_list_f, closed_list_
                     best_feasible_soln.g = cur_soln
                     best_feasible_soln.path = other_end.path + \
                         current_node.path[::-1]
-                    print(current_node.visited)
-
-                    print('-------BEST_SOLN-----: ', best_feasible_soln.g)
-                    print(best_feasible_soln.path)
+                    # print(current_node.visited)
+                    #
+                    # print('-------BEST_SOLN-----: ', best_feasible_soln.g)
+                    # print(best_feasible_soln.path)
 
     if best_feasible_soln.g < best_ub:
         best_ub = best_feasible_soln.g
@@ -816,11 +818,11 @@ def expand_backward(start_node, end_node, open_list_b, open_list_f, closed_list_
     # Found the goal
     if current_node == start_node:
         # print('at the start node')
-        return open_list_b, closed_list_b, closed_list_b_g, best_ub, best_feasible_soln, num_tap_solved, current_node.level, tot_child, uncommon_number, common_number
+        return open_list_b, closed_list_b, best_ub, best_feasible_soln, num_tap_solved, current_node.level, tot_child, uncommon_number, common_number
 
     if current_node.f > best_ub:
         # print('current node is pruned')
-        return open_list_b, closed_list_b, closed_list_b_g, best_ub, best_feasible_soln, num_tap_solved, current_node.level, tot_child, uncommon_number, common_number
+        return open_list_b, closed_list_b, best_ub, best_feasible_soln, num_tap_solved, current_node.level, tot_child, uncommon_number, common_number
 
     # Generate children
     eligible_expansions = get_successors_b(current_node)
@@ -891,17 +893,20 @@ def expand_backward(start_node, end_node, open_list_b, open_list_f, closed_list_
 
         for open_node in removal:
             open_list_b.remove(open_node)
-            closed_list_b.append(open_node.fixed)
-            closed_list_b_g.append(open_node.g)
-            del open_node
+            closed_list_b.append(open_node)
 
         # Child is on the closed list
         if add:
-            for idx, closed_node_fixed in enumerate(closed_list_b):
-                if child.fixed == closed_node_fixed:
-                    if child.g > closed_list_b_g[idx]:
+            for closed_node in closed_list_b:
+                if child.fixed == closed_node.fixed:
+                    if child.g > closed_node.g:
                         add = False
                         break
+            # for idx, closed_node_fixed in enumerate(closed_list_b):
+            #     if child.fixed == closed_node_fixed:
+            #         if child.g > closed_list_b_g[idx]:
+            #             add = False
+            #             break
 
         # Add the child to the open list
         if add:
@@ -909,19 +914,19 @@ def expand_backward(start_node, end_node, open_list_b, open_list_f, closed_list_
         else:
             del child
 
-    return open_list_b, closed_list_b, closed_list_b_g, best_ub, best_feasible_soln, num_tap_solved, current_level, tot_child, uncommon_number, common_number
+    return open_list_b, closed_list_b, best_ub, best_feasible_soln, num_tap_solved, current_level, tot_child, uncommon_number, common_number
 
-def purge(open_list_b, open_list_f, closed_list_b, closed_list_b_g, closed_list_f, closed_list_f_g, max_level_f, max_level_b, beam_k, num_purged):
+def purge(open_list_b, open_list_f, closed_list_b, closed_list_f, max_level_f, max_level_b, beam_k, num_purged):
 
     keep_f =[]
     not_kept = []
     if max_level_f > 2:
-        values_ofn = np.ones((beam_k, max_level_f - 2)) * np.inf
-        indices_ofn = np.ones((beam_k, max_level_f - 2)) * np.inf
+        values_ofn = np.ones((beam_k-1, max_level_f - 2)) * np.inf
+        indices_ofn = np.ones((beam_k-1, max_level_f - 2)) * np.inf
 
         for idx, ofn in enumerate(open_list_f):
             cur_lev = ofn.level
-            if cur_lev > 3:
+            if cur_lev > 2:
                 try:
                     cur_max = np.max(values_ofn[:, cur_lev-3])
                     max_idx = np.argmax(values_ofn[:, cur_lev-3])
@@ -933,7 +938,6 @@ def purge(open_list_b, open_list_f, closed_list_b, closed_list_b_g, closed_list_
                     values_ofn[max_idx, cur_lev-3] = ofn.f
             else:
                 keep_f.append(idx)
-
         indices_ofn = indices_ofn.ravel()
         indices_ofn = indices_ofn[indices_ofn < 1000]
         keepinds = np.concatenate((np.array(keep_f), indices_ofn), axis=None).astype(int)
@@ -941,8 +945,7 @@ def purge(open_list_b, open_list_f, closed_list_b, closed_list_b_g, closed_list_
         not_kept = np.delete(np.arange(len(open_list_f)), keepinds)
         for i in not_kept:
             not_kept_node = open_list_f[i]
-            closed_list_f.append(not_kept_node.fixed)
-            closed_list_f_g.append(not_kept_node.g)
+            closed_list_f.append(not_kept_node)
 
         open_list_f = list(np.array(open_list_f)[keepinds])
 
@@ -952,9 +955,9 @@ def purge(open_list_b, open_list_f, closed_list_b, closed_list_b_g, closed_list_
     not_kept = []
     max_level_b = len(damaged_dict) - max_level_b
 
-    if max_level_b > 3:
-        values_ofn = np.ones((beam_k, max_level_f - 2)) * np.inf
-        indices_ofn = np.ones((beam_k, max_level_f - 2)) * np.inf
+    if max_level_b > 2:
+        values_ofn = np.ones((beam_k-1, max_level_f - 2)) * np.inf
+        indices_ofn = np.ones((beam_k-1, max_level_f - 2)) * np.inf
 
         for idx, ofn in enumerate(open_list_b):
             cur_lev = len(damaged_dict) - ofn.level
@@ -978,15 +981,14 @@ def purge(open_list_b, open_list_f, closed_list_b, closed_list_b_g, closed_list_
         not_kept = np.delete(np.arange(len(open_list_b)), keepinds)
         for i in not_kept:
             not_kept_node = open_list_b[i]
-            closed_list_b.append(not_kept_node.fixed)
-            closed_list_b_g.append(not_kept_node.g)
+            closed_list_b.append(not_kept_node)
 
         open_list_b = list(np.array(open_list_b)[keepinds])
 
     num_purged += len(not_kept)
 
 
-    return open_list_b, open_list_f, closed_list_b, closed_list_b_g, closed_list_f, closed_list_f_g, num_purged
+    return open_list_b, open_list_f, closed_list_b, closed_list_f, num_purged
 
 
 def search(start_node, end_node, best_ub, beam_search=False, beam_k=None):
@@ -997,7 +999,7 @@ def search(start_node, end_node, best_ub, beam_search=False, beam_k=None):
     # pr(n) = max(f(n), 2g(n)) - min priority expands
     # U is best solution found so far - stops when - U <=max(C,fminF,fminB,gminF +gminB + eps)
     # this is for front to end
-    print(best_ub)
+    print('best_ub: ', best_ub)
     max_level_b = 0
     max_level_f = 0
 
@@ -1046,13 +1048,13 @@ def search(start_node, end_node, best_ub, beam_search=False, beam_k=None):
         # print('f length {} b length {}'.format(len(open_list_f), len(open_list_b)))
 
         if search_direction == 'Forward':
-            open_list_f, closed_list_f, closed_list_f_g, best_ub, best_feasible_soln, num_tap_solved, level_f, tot_child, uncommon_number, common_number = expand_forward(
-                start_node, end_node, open_list_b, open_list_f, closed_list_b, closed_list_f, closed_list_f_g, best_ub, best_feasible_soln, num_tap_solved, front_to_end=False, uncommon_number=uncommon_number, tot_child=tot_child, common_number=common_number)
+            open_list_f, closed_list_f, best_ub, best_feasible_soln, num_tap_solved, level_f, tot_child, uncommon_number, common_number = expand_forward(
+                start_node, end_node, open_list_b, open_list_f, closed_list_b, closed_list_f, best_ub, best_feasible_soln, num_tap_solved, front_to_end=False, uncommon_number=uncommon_number, tot_child=tot_child, common_number=common_number)
             max_level_f = max(max_level_f, level_f)
 
         else:
-            open_list_b, closed_list_b, closed_list_b_g, best_ub, best_feasible_soln, num_tap_solved, level_b, tot_child, uncommon_number, common_number = expand_backward(
-                start_node, end_node, open_list_b, open_list_f, closed_list_b, closed_list_f, closed_list_b_g, best_ub, best_feasible_soln, num_tap_solved, front_to_end=False, uncommon_number=uncommon_number, tot_child=tot_child, common_number=common_number)
+            open_list_b, closed_list_b, best_ub, best_feasible_soln, num_tap_solved, level_b, tot_child, uncommon_number, common_number = expand_backward(
+                start_node, end_node, open_list_b, open_list_f, closed_list_b, closed_list_f, best_ub, best_feasible_soln, num_tap_solved, front_to_end=False, uncommon_number=uncommon_number, tot_child=tot_child, common_number=common_number)
             max_level_b = max(max_level_b, level_b)
 
 
@@ -1081,12 +1083,12 @@ def search(start_node, end_node, best_ub, beam_search=False, beam_k=None):
         if  (len(open_list_f) == 0 or len(open_list_b) == 0) and best_feasible_soln.path is not None:
             return best_feasible_soln.path, best_feasible_soln.g, num_tap_solved, tot_child, uncommon_number, common_number, num_purged
 
-        if iter_count % 10 == 0:
+        if iter_count % 5 == 0:
             # print('length of forward open list: ', len(open_list_f))
             # print('length of backwards open list: ', len(open_list_b))
             if beam_search:
-                open_list_b, open_list_f, closed_list_b, closed_list_b_g, closed_list_f, closed_list_f_g, num_purged = purge(
-                    open_list_b, open_list_f, closed_list_b, closed_list_b_g, closed_list_f, closed_list_f_g,
+                open_list_b, open_list_f, closed_list_b, closed_list_f, num_purged = purge(
+                    open_list_b, open_list_f, closed_list_b, closed_list_f,
                     max_level_f, max_level_b, beam_k, num_purged)
 
         bar.update(iter_count)
@@ -1631,7 +1633,7 @@ if __name__ == '__main__':
     full = args.full
     rand_gen = args.random
     opt = True
-    np.random.seed(9)
+    np.random.seed(0)
 
     NETWORK = os.path.join(FOLDER, net_name)
     JSONFILE = os.path.join(NETWORK, net_name.lower() + '.geojson')
@@ -1691,7 +1693,7 @@ if __name__ == '__main__':
 
                 import operator
                 sorted_d = sorted(net.link.items(), key=operator.itemgetter(1))[::-1]
-                sorted_d = sorted_d[:100]
+                sorted_d = sorted_d[:75]
                 all_links = [lnk[0] for lnk in sorted_d]
                 # all_links = [lnk for lnk in net.link.keys()]
 
@@ -1701,7 +1703,7 @@ if __name__ == '__main__':
                 damaged_dict = {}
 
                 for a_link in damaged_links:
-                    damaged_dict[a_link] = np.random.uniform(10, 120, 1)[0]
+                    damaged_dict[a_link] = np.random.uniform(10, 90, 1)[0]
 
                 SCENARIO_DIR = NETWORK_DIR
                 ULT_SCENARIO_DIR = os.path.join(SCENARIO_DIR, str(num_broken))
@@ -1804,9 +1806,13 @@ if __name__ == '__main__':
                             algo_num_tap = load(fname + '_num_tap')
                             algo_elapsed = load(fname + '_elapsed')
 
+                    print('full obj: ', algo_obj)
 
                     if beam_search:
-                        ks = [2,4,8,16,32]
+
+                        ks = [2,8,32]
+                        if len(damaged_dict) == 64:
+                            ks = [32, 64]
 
                         for k in ks:
 
@@ -1908,7 +1914,10 @@ if __name__ == '__main__':
                                 r_algo_path = load(fname + '_path')
                                 r_algo_num_tap = load(fname + '_num_tap')
                                 r_algo_elapsed = load(fname + '_elapsed')
-
+                            print('------')
+                            print('k: ', k)
+                            print('obj: ', beamsearch_obj)
+                            print('purged#: ', num_purgebs)
                     t = PrettyTable()
                     t.title = net_name + ' with ' + str(num_broken) + ' broken bridges'
                     t.field_names = ['Method', 'Objective', 'Run Time', '# TAP']
@@ -1918,6 +1927,7 @@ if __name__ == '__main__':
                         t.add_row(['APPROX', approx_obj, approx_elapsed, approx_num_tap])
                     if beam_search:
                         t.add_row(['BeamSearch', beamsearch_obj, beamsearch_elapsed, beamsearch_num_tap])
+
                     if full:
                         t.add_row(['ALGORITHM', algo_obj, algo_elapsed, algo_num_tap])
                     if rand_gen:

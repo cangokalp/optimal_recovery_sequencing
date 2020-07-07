@@ -147,13 +147,23 @@ def prep_dictionaries(method_dict):
     method_dict['_elapsed'] = []
 
 
-def result_table(reps, file_path, broken):
-
-    filenames = ['beamsearch_solution', 'r_algo_solution',
+def result_table(reps, file_path, broken, ks):
+    pdb.set_trace()
+    filenames = ['beamsearch_solution_k2', 'beamsearch_solution_k4', 'beamsearch_solution_k8', 'beamsearch_solution_k16', 'beamsearch_solution_k32',
+                 'r_algo_solution_k2', 'r_algo_solution_k4', 'r_algo_solution_k8', 'r_algo_solution_k16', 'r_algo_solution_k32',
                  'greedy_solution', 'importance_factor_bound']
 
-    heuristic = {}
-    r_heuristic = {}
+    heuristic2 = {}
+    r_heuristic2 = {}
+    heuristic4 = {}
+    r_heuristic4 = {}
+    heuristic8 = {}
+    r_heuristic8 = {}
+    heuristic16 = {}
+    r_heuristic16 = {}
+    heuristic32 = {}
+    r_heuristic32 = {}
+
     greedy = {}
     brute_force = {}
     importance_factor = {}
@@ -161,7 +171,7 @@ def result_table(reps, file_path, broken):
 
 
 
-    dict_list = [heuristic, r_heuristic, greedy, importance_factor]
+    dict_list = [heuristic2, heuristic4, heuristic8, heuristic16, heuristic32, r_heuristic2, r_heuristic4, r_heuristic8, r_heuristic16, r_heuristic32, greedy, importance_factor]
     key_list = ['_obj', '_num_tap', '_elapsed']
 
     for method_dict in dict_list:
@@ -190,8 +200,8 @@ def result_table(reps, file_path, broken):
     # dict_list.remove(brute_force)
 
     # optimal = deepcopy(np.array(brute_force['_obj']))
-    optimal = np.minimum(np.array(heuristic['_obj']), np.array(greedy['_obj']))
-
+    optimal = np.minimum(np.array(heuristic32['_obj']), np.array(greedy['_obj']))
+    pdb.set_trace()
 
     data = np.zeros((len(dict_list), 6))
 
@@ -272,7 +282,7 @@ def result_table(reps, file_path, broken):
 
     plt.ylabel('Normalized Metric Value')
     plt.xticks([(r + barWidth) for r in range(len(obj_means))],
-               ['M', 'RM', 'GM', 'IF'])
+               ['M2', 'RM2', 'M4', 'RM4', 'M8', 'RM8', 'M16', 'RM16', 'M32', 'RM32', 'GM', 'IF'])
     # plt.title('Performance Comparison - ' + broken, fontsize=7)
     if broken != 10:
         txt = "# Broken Links: " + \
@@ -289,7 +299,7 @@ def result_table(reps, file_path, broken):
 
     columns = ('Avg Rel Gap', 'Delta', 'Avg Tap Solved',
                'Delta', 'Avg Elapsed(s)', 'Delta')
-    rows = ['M', 'RM', 'GM', 'IF']
+    rows = ['M2', 'RM2', 'M4', 'RM4', 'M8', 'RM8', 'M16', 'RM16', 'M32', 'RM32', 'GM', 'IF']
 
     plt.close()
 
@@ -417,25 +427,22 @@ def get_tables(directory):
     except:
         return
 
-    pdb.set_trace()
+    ks = [2,4,8,16,32]
     for broken in brokens:
         try:
             B_DIR = os.path.join(SCENARIO_DIR, broken)
-            ks = get_folders(B_DIR)
         except:
             return
 
-        for k in ks:
 
-            ULT_SCENARIO_DIR = os.path.join(B_DIR, k)
-            repetitions = get_folders(ULT_SCENARIO_DIR)
+        repetitions = get_folders(B_DIR)
 
-            if len(repetitions) == 0:
-                return
+        if len(repetitions) == 0:
+            return
 
-            reps = [int(i) for i in range(len(repetitions))]
-            max_reps = max(reps)
-            result_table(max_reps, ULT_SCENARIO_DIR, broken)
+        reps = [int(i) for i in range(len(repetitions))]
+        max_reps = max(reps)
+        result_table(max_reps, B_DIR, broken, ks)
 
 
 def get_sequence_graphs(directory):
