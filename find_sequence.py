@@ -1126,8 +1126,9 @@ def worst_benefit(before, links_to_remove, before_eq_tstt, relax=False, bsearch=
             tstt = solve_UE(net=test_net, relax=relax)
 
             memory[frozenset(test_net.not_fixed)] = tstt
-
-            wb[link] = tstt - before_eq_tstt
+            # if tstt - before_eq_tstt <0 :
+            #     pdb.set_trace()
+            wb[link] = max(tstt - before_eq_tstt, 0)
             # print(tstt)
             # print(link, wb[link])
 
@@ -1165,7 +1166,9 @@ def best_benefit(after, links_to_remove, after_eq_tstt, relax=False, bsearch=Fal
 
             # seq_list.append(Node(link_id=link, parent=None, net=test_net, tstt_after=tstt_after,
             # tstt_before=after_eq_tstt, level=1, damaged_dict=damaged_dict))
-            bb[link] = after_eq_tstt - tstt_after
+            # if after_eq_tstt - tstt_after < 0 :
+                # pdb.set_trace()
+            bb[link] = max(after_eq_tstt - tstt_after, 0)
 
             # print(tstt_after)
             # print(link, bb[link])
@@ -1633,7 +1636,7 @@ if __name__ == '__main__':
     full = args.full
     rand_gen = args.random
     opt = True
-    np.random.seed(0)
+    np.random.seed(42)
 
     NETWORK = os.path.join(FOLDER, net_name)
     JSONFILE = os.path.join(NETWORK, net_name.lower() + '.geojson')
@@ -1651,8 +1654,8 @@ if __name__ == '__main__':
     if graphing:
         get_tables(NETWORK_DIR)
     else:
-
         if rand_gen:
+
             for rep in range(reps):
                 memory = {}
 
@@ -1702,7 +1705,9 @@ if __name__ == '__main__':
                 damaged_dict = {}
 
                 for a_link in damaged_links:
-                    damaged_dict[a_link] = np.random.uniform(10, 120, 1)[0]
+                    damaged_dict[a_link] = np.random.uniform(10, 90, 1)[0]
+
+                print(rep)
 
                 if len(damaged_links) > 8:
                     opt=False
