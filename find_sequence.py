@@ -920,26 +920,27 @@ def purge(open_list_b, open_list_f, closed_list_b, closed_list_f, max_level_f, m
 
     keep_f =[]
     not_kept = []
-    if max_level_f > 2:
-        values_ofn = np.ones((beam_k-1, max_level_f - 2)) * np.inf
-        indices_ofn = np.ones((beam_k-1, max_level_f - 2)) * np.inf
+    if max_level_f >= 2:
+        values_ofn = np.ones((beam_k, max_level_f - 1)) * np.inf
+        indices_ofn = np.ones((beam_k, max_level_f - 1)) * np.inf
 
         for idx, ofn in enumerate(open_list_f):
             cur_lev = ofn.level
-            if cur_lev > 2:
+            if cur_lev >= 2:
                 try:
-                    cur_max = np.max(values_ofn[:, cur_lev-3])
-                    max_idx = np.argmax(values_ofn[:, cur_lev-3])
+                    cur_max = np.max(values_ofn[:, cur_lev-2])
+                    max_idx = np.argmax(values_ofn[:, cur_lev-2])
                 except:
                     pdb.set_trace()
 
                 if ofn.f < cur_max:
-                    indices_ofn[max_idx, cur_lev-3] = idx
-                    values_ofn[max_idx, cur_lev-3] = ofn.f
+                    indices_ofn[max_idx, cur_lev-2] = idx
+                    values_ofn[max_idx, cur_lev-2] = ofn.f
             else:
                 keep_f.append(idx)
         indices_ofn = indices_ofn.ravel()
         indices_ofn = indices_ofn[indices_ofn < 1000]
+
         keepinds = np.concatenate((np.array(keep_f), indices_ofn), axis=None).astype(int)
         
         not_kept = np.delete(np.arange(len(open_list_f)), keepinds)
@@ -955,22 +956,22 @@ def purge(open_list_b, open_list_f, closed_list_b, closed_list_f, max_level_f, m
     not_kept = []
     max_level_b = len(damaged_dict) - max_level_b
 
-    if max_level_b > 2:
-        values_ofn = np.ones((beam_k-1, max_level_f - 2)) * np.inf
-        indices_ofn = np.ones((beam_k-1, max_level_f - 2)) * np.inf
+    if max_level_b >= 2:
+        values_ofn = np.ones((beam_k, max_level_f - 1)) * np.inf
+        indices_ofn = np.ones((beam_k, max_level_f - 1)) * np.inf
 
         for idx, ofn in enumerate(open_list_b):
             cur_lev = len(damaged_dict) - ofn.level
-            if cur_lev > 2:
+            if cur_lev >= 2:
                 try:
-                    cur_max = np.max(values_ofn[:, cur_lev-3])
-                    max_idx = np.argmax(values_ofn[:, cur_lev-3])
+                    cur_max = np.max(values_ofn[:, cur_lev-2])
+                    max_idx = np.argmax(values_ofn[:, cur_lev-2])
                 except:
                     pdb.set_trace()
 
                 if ofn.f < cur_max:
-                    indices_ofn[max_idx, cur_lev-3] = idx
-                    values_ofn[max_idx, cur_lev-3] = ofn.f
+                    indices_ofn[max_idx, cur_lev-2] = idx
+                    values_ofn[max_idx, cur_lev-2] = ofn.f
             else:
                 keep_b.append(idx)
 
@@ -986,7 +987,6 @@ def purge(open_list_b, open_list_f, closed_list_b, closed_list_f, max_level_f, m
         open_list_b = list(np.array(open_list_b)[keepinds])
 
     num_purged += len(not_kept)
-
 
     return open_list_b, open_list_f, closed_list_b, closed_list_f, num_purged
 
@@ -1653,7 +1653,6 @@ if __name__ == '__main__':
     else:
 
         if rand_gen:
-            opt = False
             for rep in range(reps):
                 memory = {}
 
@@ -1703,7 +1702,10 @@ if __name__ == '__main__':
                 damaged_dict = {}
 
                 for a_link in damaged_links:
-                    damaged_dict[a_link] = np.random.uniform(10, 90, 1)[0]
+                    damaged_dict[a_link] = np.random.uniform(10, 120, 1)[0]
+
+                if len(damaged_links) > 8:
+                    opt=False
 
                 SCENARIO_DIR = NETWORK_DIR
                 ULT_SCENARIO_DIR = os.path.join(SCENARIO_DIR, str(num_broken))
@@ -1781,7 +1783,7 @@ if __name__ == '__main__':
 
                         if not os.path.exists(fname + extension):
                             search_start = time.time()
-                            algo_path, algo_obj, search_tap_solved, _, _, _, _ = search(
+                            algo_path, algo_obj, search_tap_solved, tot_child, uncommon_number, common_number, _ = search(
                                 start_node, end_node, best_ub)
                             search_elapsed = time.time() - search_start + importance_elapsed
 
@@ -1800,19 +1802,20 @@ if __name__ == '__main__':
                             save(fname + '_path', algo_path)
                             save(fname + '_num_tap', algo_num_tap)
                             save(fname + '_elapsed', algo_elapsed)
+                            save(fname + '_totchild', tot_child)
+                            save(fname + '_uncommon', uncommon_number)
+                            save(fname + '_common', common_number)
                         else:
                             algo_obj = load(fname + '_obj')
                             algo_path = load(fname + '_path')
                             algo_num_tap = load(fname + '_num_tap')
                             algo_elapsed = load(fname + '_elapsed')
 
-                    print('full obj: ', algo_obj)
+                        print('full obj: ', algo_obj)
 
                     if beam_search:
 
                         ks = [2,8,32]
-                        if len(damaged_dict) == 64:
-                            ks = [32, 64]
 
                         for k in ks:
 
@@ -1958,8 +1961,8 @@ if __name__ == '__main__':
             damaged_dict_ = get_broken_links(JSONFILE, scenario_file)
             # num_broken = len(damaged_dict)
 
-            opt = False
-            if num_broken >= 8:
+            opt = True
+            if num_broken > 8:
                 opt = False
 
 
