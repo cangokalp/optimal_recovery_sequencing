@@ -1123,7 +1123,7 @@ def worst_benefit(before, links_to_remove, before_eq_tstt, relax=False, bsearch=
             not_fixed = [link]
             test_net.not_fixed = set(not_fixed)
 
-            tstt = solve_UE(net=test_net, relax=relax)
+            tstt = solve_UE(net=test_net, eval_seq=True)
 
             memory[frozenset(test_net.not_fixed)] = tstt
             # if tstt - before_eq_tstt <0 :
@@ -1160,7 +1160,7 @@ def best_benefit(after, links_to_remove, after_eq_tstt, relax=False, bsearch=Fal
             added = [link]
             not_fixed = set(to_visit).difference(set(added))
             test_net.not_fixed = set(not_fixed)
-            tstt_after = solve_UE(net=test_net, relax=relax)
+            tstt_after = solve_UE(net=test_net, eval_seq=True)
 
             memory[frozenset(test_net.not_fixed)] = tstt_after
 
@@ -1195,7 +1195,7 @@ def state_after(damaged_links, save_dir, relax=False, real=False, bsearch=False,
         net_after = create_network(NETFILE, TRIPFILE)
         net_after.not_fixed = set(damaged_links)
 
-        after_eq_tstt = solve_UE(net=net_after, relax=relax)
+        after_eq_tstt = solve_UE(net=net_after, eval_seq=True)
 
         memory[frozenset(net_after.not_fixed)] = after_eq_tstt
 
@@ -1224,7 +1224,7 @@ def state_before(damaged_links, save_dir, relax=False, real=False, bsearch=False
         net_before = create_network(NETFILE, TRIPFILE)
         net_before.not_fixed = set([])
 
-        before_eq_tstt = solve_UE(net=net_before, relax=relax, flows=True)
+        before_eq_tstt = solve_UE(net=net_before, eval_seq=True)
         memory[frozenset(net_before.not_fixed)] = before_eq_tstt
 
         save(fname, net_before)
@@ -1489,7 +1489,8 @@ def brute_force(net_after, after_eq_tstt, before_eq_tstt, is_approx=False):
         # pdb.set_trace()
 
         elapsed = time.time() - start
-        save(fname + '_obj', min_cost)
+        bound, _, _ = eval_sequence(net, min_seq, after_eq_tstt, before_eq_tstt, damaged_dict=damaged_dict)
+        save(fname + '_obj', bound)
         save(fname + '_path', min_seq)
         save(fname + '_elapsed', elapsed)
         save(fname + '_num_tap', tap_solved)
@@ -1695,7 +1696,16 @@ if __name__ == '__main__':
 
                 import operator
                 sorted_d = sorted(net.link.items(), key=operator.itemgetter(1))[::-1]
-                sorted_d = sorted_d[:75]
+
+                if len(num_broken) > 75:
+                    cutind = 200
+                else:
+                    cutind = 75
+
+                try:
+                    sorted_d = sorted_d[:cutind]
+                except:
+                    sorted_d = sorted_d
                 all_links = [lnk[0] for lnk in sorted_d]
                 # all_links = [lnk for lnk in net.link.keys()]
 
@@ -1705,7 +1715,7 @@ if __name__ == '__main__':
                 damaged_dict = {}
 
                 for a_link in damaged_links:
-                    damaged_dict[a_link] = np.random.uniform(10, 90, 1)[0]
+                    damaged_dict[a_link] = np.random.uniform(30, 90, 1)[0]
 
                 print(rep)
 
