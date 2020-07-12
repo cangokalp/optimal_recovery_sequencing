@@ -1697,7 +1697,7 @@ if __name__ == '__main__':
                 import operator
                 sorted_d = sorted(net.link.items(), key=operator.itemgetter(1))[::-1]
 
-                if len(num_broken) > 75:
+                if num_broken > 75:
                     cutind = 200
                 else:
                     cutind = 75
