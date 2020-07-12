@@ -469,7 +469,7 @@ def get_minlb(node, fwd_node, bwd_node, orderedb_benefits, orderedw_benefits, or
         node.lb = backward_lb
 
     if node.lb > node.ub:
-        if abs(node.lb - node.ub) < 1e-4:
+        if abs(node.lb - node.ub) < 5:
             tempub = node.ub
             node.ub = node.lb
             node.lb = tempub
