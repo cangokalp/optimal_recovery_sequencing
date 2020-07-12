@@ -1224,7 +1224,7 @@ def state_before(damaged_links, save_dir, relax=False, real=False, bsearch=False
         net_before = create_network(NETFILE, TRIPFILE)
         net_before.not_fixed = set([])
 
-        before_eq_tstt = solve_UE(net=net_before, eval_seq=True)
+        before_eq_tstt = solve_UE(net=net_before, eval_seq=True, flows=True)
         memory[frozenset(net_before.not_fixed)] = before_eq_tstt
 
         save(fname, net_before)
