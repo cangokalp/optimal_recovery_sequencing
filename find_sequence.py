@@ -146,8 +146,8 @@ def get_successors_f(node):
     if node.level != 0:
         tail = node.path[-1]
         for a_link in not_visited:
-            # if wb[a_link] * damaged_dict[tail] - bb[tail] * damaged_dict[a_link] > 0:
-            #     continue
+            if wb[a_link] * damaged_dict[tail] - bb[tail] * damaged_dict[a_link] > 0:
+                continue
             successors.append(a_link)
     else:
         successors = not_visited
@@ -168,8 +168,8 @@ def get_successors_b(node):
 
             # if wb[tail] * node.damaged_dict[a_link] - bb[a_link] *
             # node.damaged_dict[tail] > 0:
-            # if -wb[tail] * damaged_dict[a_link] + bb[a_link] * damaged_dict[tail] < 0:
-            #     continue
+            if -wb[tail] * damaged_dict[a_link] + bb[a_link] * damaged_dict[tail] < 0:
+                continue
             successors.append(a_link)
     else:
         successors = not_visited
@@ -1837,6 +1837,8 @@ if __name__ == '__main__':
 
                             wb, bb, start_node, end_node, net_after, net_before, after_eq_tstt, before_eq_tstt, benefit_analysis_st = get_wb(
                                 damaged_links, save_dir, approx, relax=False, bsearch=True, ext_name=ext_name)
+                            print(wb)
+                            print(bb)
                             benefit_analysis_elapsed = time.time() - benefit_analysis_st
 
                             beamsearch_num_tap = best_benefit_taps + worst_benefit_taps
