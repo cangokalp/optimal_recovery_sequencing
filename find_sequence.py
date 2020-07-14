@@ -635,7 +635,7 @@ def expand_forward(start_node, end_node, open_list_b, open_list_f, closed_list_b
                     best_feasible_soln.path = cur_path
                     # print(current_node.visited)
                     # print('-------BEST_SOLN-----: ', best_feasible_soln.g)
-                    # print(best_feasible_soln.path)
+                    print(best_feasible_soln.path)
 
 
             if set(other_end.not_visited) == set(cur_visited):
@@ -647,7 +647,7 @@ def expand_forward(start_node, end_node, open_list_b, open_list_f, closed_list_b
                     best_feasible_soln.g = cur_soln
                     best_feasible_soln.path = cur_path
                     # print('-------BEST_SOLN-----: ', best_feasible_soln.g)
-                    # print(best_feasible_soln.path)
+                    print(best_feasible_soln.path)
 
     if best_feasible_soln.g < best_ub:
         best_ub = best_feasible_soln.g
@@ -798,7 +798,7 @@ def expand_backward(start_node, end_node, open_list_b, open_list_f, closed_list_
                     # print(current_node.visited)
                     #
                     # print('-------BEST_SOLN-----: ', best_feasible_soln.g)
-                    # print(best_feasible_soln.path)
+                    print(best_feasible_soln.path)
 
             elif set(other_end.not_visited) == set(cur_visited):
                 cur_soln = current_node.g + other_end.g
@@ -810,7 +810,7 @@ def expand_backward(start_node, end_node, open_list_b, open_list_f, closed_list_
                     # print(current_node.visited)
                     #
                     # print('-------BEST_SOLN-----: ', best_feasible_soln.g)
-                    # print(best_feasible_soln.path)
+                    print(best_feasible_soln.path)
 
     if best_feasible_soln.g < best_ub:
         best_ub = best_feasible_soln.g
@@ -926,16 +926,16 @@ def purge(open_list_b, open_list_f, closed_list_b, closed_list_f, max_level_f, m
 
         for idx, ofn in enumerate(open_list_f):
             cur_lev = ofn.level
-            if cur_lev >= 2:
+            if cur_lev > 2:
                 try:
-                    cur_max = np.max(values_ofn[:, cur_lev-2])
-                    max_idx = np.argmax(values_ofn[:, cur_lev-2])
+                    cur_max = np.max(values_ofn[:, cur_lev-3])
+                    max_idx = np.argmax(values_ofn[:, cur_lev-3])
                 except:
                     pdb.set_trace()
 
                 if ofn.f < cur_max:
-                    indices_ofn[max_idx, cur_lev-2] = idx
-                    values_ofn[max_idx, cur_lev-2] = ofn.f
+                    indices_ofn[max_idx, cur_lev-3] = idx
+                    values_ofn[max_idx, cur_lev-3] = ofn.f
             else:
                 keep_f.append(idx)
         indices_ofn = indices_ofn.ravel()
@@ -962,16 +962,16 @@ def purge(open_list_b, open_list_f, closed_list_b, closed_list_f, max_level_f, m
 
         for idx, ofn in enumerate(open_list_b):
             cur_lev = len(damaged_dict) - ofn.level
-            if cur_lev >= 2:
+            if cur_lev > 2:
                 try:
-                    cur_max = np.max(values_ofn[:, cur_lev-2])
-                    max_idx = np.argmax(values_ofn[:, cur_lev-2])
+                    cur_max = np.max(values_ofn[:, cur_lev-3])
+                    max_idx = np.argmax(values_ofn[:, cur_lev-3])
                 except:
                     pdb.set_trace()
 
                 if ofn.f < cur_max:
-                    indices_ofn[max_idx, cur_lev-2] = idx
-                    values_ofn[max_idx, cur_lev-2] = ofn.f
+                    indices_ofn[max_idx, cur_lev-3] = idx
+                    values_ofn[max_idx, cur_lev-3] = ofn.f
             else:
                 keep_b.append(idx)
 
@@ -1083,7 +1083,7 @@ def search(start_node, end_node, best_ub, beam_search=False, beam_k=None):
         if  (len(open_list_f) == 0 or len(open_list_b) == 0) and best_feasible_soln.path is not None:
             return best_feasible_soln.path, best_feasible_soln.g, num_tap_solved, tot_child, uncommon_number, common_number, num_purged
 
-        if iter_count % 5 == 0:
+        if iter_count % 10 == 0:
             # print('length of forward open list: ', len(open_list_f))
             # print('length of backwards open list: ', len(open_list_b))
             if beam_search:
@@ -1393,14 +1393,10 @@ def importance_factor_solution(net_before, after_eq_tstt, before_eq_tstt):
             tot_flow += if_net.link[ij]['flow']
 
         damaged_links = damaged_dict.keys()
-        ffp = 1
         if_dict = {}
         for link_id in damaged_links:
             link_flow = if_net.link[link_id]['flow']
             if_dict[link_id] = link_flow / tot_flow
-            ffp -= if_dict[link_id]
-
-        ffp = ffp * 100
 
         sorted_d = sorted(if_dict.items(), key=lambda x: x[1])
         path, if_importance = zip(*sorted_d)
@@ -1830,7 +1826,7 @@ if __name__ == '__main__':
 
                     if beam_search:
 
-                        ks = [2,8,32]
+                        ks = [2,32]
 
                         for k in ks:
 
@@ -1886,7 +1882,7 @@ if __name__ == '__main__':
 
                             fname = save_dir + '/r_algo_solution' + '_k' + str(k)
                             ext_name = 'r_k' + str(k)
-
+                            print('reg bsearch finished')
                             del memory
                             memory = {}
 
