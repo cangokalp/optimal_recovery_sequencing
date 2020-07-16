@@ -298,177 +298,71 @@ def get_minlb(node, fwd_node, bwd_node, orderedb_benefits, orderedw_benefits, or
 
     b, days_b = orderlists(orderedb_benefits, ordered_days, slack)
     w, days_w = orderlists(orderedw_benefits, ordered_days, slack)
+    sumw = sum(w)
+    sumb = sum(b)
 
-    uborig = node.ub
-    backward_lb = node.lb
-    backward_ub = node.ub
-
-    ###### FIND LB FROM BACKWARDS #####
-    if sum(w) < slack:
-        for i in range(len(days_b)):
-            if i == 0:
-                bwd_w = deepcopy(w)
-                bwd_days_w = deepcopy(days_w)
-                b_tstt = bwd_node.tstt_before
-                slack_available = forward_tstt - b_tstt
-                bwd_w, bwd_days_w = orderlists(
-                    bwd_w, bwd_days_w, slack_available, reverse=False)
-
-            else:
-                bwd_w = bwd_w[1:]
-                bwd_days_w = bwd_days_w[1:]
-                bwd_w, bwd_days_w = orderlists(
-                    bwd_w, bwd_days_w, slack_available, reverse=False)
-
-            slack_available = forward_tstt - b_tstt
-
-            benefit = min(bwd_w[0], slack_available)
-            b_tstt = b_tstt + benefit
-
-            backward_lb += max((b_tstt - node.before_eq_tstt),
-                               0) * bwd_days_w[0]
-        common_number += 1
-    else:
-        bwd_days_w = deepcopy(days_w)
-
-        mini = min(bwd_days_w)
-        bwd_days_w.remove(mini)
-
-        top = mini * (forward_tstt - node.before_eq_tstt)
-        backward_lb += sum(bwd_days_w) * \
-            (bwd_node.tstt_before - node.before_eq_tstt) + top
-        uncommon_number += 1
+    orig_lb = node.lb
+    orig_ub = node.ub
 
     ###### FIND LB FROM FORWARDS #####
-    if sum(b) > slack:
-        # CHECK
-        last_iter = False
-        for i in range(len(days_b)):
+    if sumw < slack:
 
-            if i == 0:
-                fwd_b = deepcopy(b)
-                fwd_days_b = deepcopy(days_b)
-                b_tstt = fwd_node.tstt_after
-
-            if i > 0:
-                # slack_available = b_tstt - backward_tstt
-                # benefit = min(fwd_b[0], slack_available)
-                b_tstt = b_tstt - fwd_b[0]
-
-                fwd_b = fwd_b[1:]
-                fwd_days_b = fwd_days_b[1:]
-                fwd_b, fwd_days_b = orderlists(
-                    fwd_b, fwd_days_b, slack=0)
-
-            if b_tstt - fwd_b[0] < backward_tstt:
-                last_iter = True
-                future_slack = b_tstt - backward_tstt
-                req_days = future_slack / (fwd_b[0] / fwd_days_b[0])
-                fwd_days_b[0] = req_days
-
-            if b_tstt == backward_tstt:
-                node.lb += sum(fwd_days_b[:]) * \
-                    (backward_tstt - node.before_eq_tstt)
-                break
-
-            if last_iter:
-                one = max((b_tstt - node.before_eq_tstt), 0) * fwd_days_b[0]
-                two = (backward_tstt - node.before_eq_tstt) * sum(fwd_days_b)
-                node.lb += min(one, two)
-                break
-
-            else:
-                node.lb += max((b_tstt - node.before_eq_tstt),
-                               0) * fwd_days_b[0]
-        common_number+=1
-    else:
-        # CHECK -
-        fwd_days_b = deepcopy(days_b)
-        mini = min(fwd_days_b)
-        fwd_days_b.remove(mini)
-        node.lb += min(days_b) * (fwd_node.tstt_after - node.before_eq_tstt) + \
-            sum(fwd_days_b) * (backward_tstt - node.before_eq_tstt)
-        uncommon_number += 1
-
-    ###### FIND UB FROM FORWARDS #####
-    if sum(w) < slack:
         for i in range(len(days_w)):
 
             if i == 0:
                 fwd_w = deepcopy(w)
                 fwd_days_w = deepcopy(days_w)
-                w_tstt = fwd_node.tstt_after
-                node.ub += max((w_tstt - node.before_eq_tstt), 0) * max(days_w)
+                b_tstt = sumw
 
             else:
-                slack_available = w_tstt - backward_tstt
-                benefit = min(fwd_w[0], slack_available)
-                w_tstt_prev = w_tstt
-                w_tstt = w_tstt - benefit
+                b_tstt = b_tstt - fwd_w[0]
                 fwd_w = fwd_w[1:]
                 fwd_days_w = fwd_days_w[1:]
-                fwd_w, fwd_days_w = orderlists(
-                    fwd_w, fwd_days_w, slack_available)
 
-            if w_tstt == backward_tstt:
-                node.ub += sum(fwd_days_w[:]) * \
-                    (backward_tstt - node.before_eq_tstt)
-                break
 
-            node.ub += max((w_tstt - node.before_eq_tstt), 0) * fwd_days_w[0]
-        common_number +=1
+            node.lb += b_tstt * fwd_days_w[0] + (bwd_node.tstt_before - node.before_eq_tstt) * fwd_days_w[0]
+        common_number+=1
     else:
-        fwd_days_w = deepcopy(days_w)
-        node.ub += sum(fwd_days_w) * (forward_tstt - node.before_eq_tstt)
-        uncommon_number += 1
+        node.lb += (fwd_node.tstt_after-node.before_eq_tstt)*min(days_w) + (bwd_node.tstt_before - node.before_eq_tstt)*(sum(days_w) - min(days_w))
+        uncommon_number+=1
 
-    ###### FIND UB FROM BACKWARDS #####
+    lb2 = (fwd_node.tstt_after-node.before_eq_tstt)*min(days_w) + (bwd_node.tstt_before - node.before_eq_tstt)*(sum(days_w) - min(days_w))
+    node.lb = max(node.lb, lb2 + orig_lb)
+
+    ###### FIND UB FROM FORWARDS #####
     if sum(b) > slack:
-        ## CHECK - CORRECT
         for i in range(len(days_b)):
             if i == 0:
-                bwd_b = deepcopy(b)
-                bwd_days_b = deepcopy(days_b)
-                w_tstt = bwd_node.tstt_before
-                slack_available = forward_tstt - w_tstt
-                bwd_b, bwd_days_b = orderlists(
-                    bwd_b, bwd_days_b, slack_available)
+                fwd_b = deepcopy(b)
+                fwd_days_b = deepcopy(days_b)
+                b_tstt = sumb
 
             else:
-                bwd_b = bwd_b[1:]
-                bwd_days_b = bwd_days_b[1:]
-                bwd_b, bwd_days_b = orderlists(
-                    bwd_b, bwd_days_b, slack_available)
+                b_tstt = b_tstt - fwd_b[0]
+                fwd_b = fwd_b[1:]
+                fwd_days_b = fwd_days_b[1:]
 
-            slack_available = forward_tstt - w_tstt
-            benefit = min(bwd_b[0], slack_available)
-            w_tstt = w_tstt + benefit
+            node.ub += b_tstt * fwd_days_b[0] + (bwd_node.tstt_before - node.before_eq_tstt) * fwd_days_b[0]
 
-            if i == len(days_b) - 1:
-                backward_ub += bwd_days_b[-1] * \
-                    (forward_tstt - node.before_eq_tstt)
-                break
-
-            if w_tstt == forward_tstt:
-                backward_ub += sum(bwd_days_b[:]) * \
-                    (forward_tstt - node.before_eq_tstt)
-                break
-
-            backward_ub += max((w_tstt - node.before_eq_tstt),
-                               0) * bwd_days_b[0]
         common_number += 1
     else:
-        bwd_days_b = deepcopy(days_b)
-        backward_ub += sum(bwd_days_b) * (forward_tstt - node.before_eq_tstt)
+        node.ub += sum(days_b) * (forward_tstt - node.before_eq_tstt)
         uncommon_number += 1
 
-    if backward_ub < node.ub:
-        node.ub = backward_ub
+    node.ub = max(node.ub, sum(days_b) * (forward_tstt - node.before_eq_tstt) + orig_ub)
 
-    if backward_lb > node.lb:
-        node.lb = backward_lb
+    #
+    # if backward_ub < node.ub:
+    #     node.ub = backward_ub
+    #
+    # if backward_lb > node.lb:
+    #     node.lb = backward_lb
 
     if node.lb > node.ub:
+
+        if node.relax == False:
+            pdb.set_trace()
+
         if abs(node.lb - node.ub) < 5:
             tempub = node.ub
             node.ub = node.lb
@@ -1167,7 +1061,7 @@ def best_benefit(after, links_to_remove, after_eq_tstt, relax=False, bsearch=Fal
             # seq_list.append(Node(link_id=link, parent=None, net=test_net, tstt_after=tstt_after,
             # tstt_before=after_eq_tstt, level=1, damaged_dict=damaged_dict))
             # if after_eq_tstt - tstt_after < 0 :
-                # pdb.set_trace()
+            #     pdb.set_trace()
             bb[link] = max(after_eq_tstt - tstt_after, 0)
 
             # print(tstt_after)
@@ -1576,9 +1470,11 @@ def get_wb(damaged_links, save_dir, approx, relax=False, bsearch=False, ext_name
 
     net_before.save_dir = save_dir
     net_after.save_dir = save_dir
+    print(after_eq_tstt, before_eq_tstt)
 
     benefit_analysis_st = time.time()
     wb = worst_benefit(net_before, damaged_links, before_eq_tstt, relax=relax, bsearch=bsearch, ext_name=ext_name)
+    print(wb)
     bb = best_benefit(net_after, damaged_links, after_eq_tstt, relax=relax,  bsearch=bsearch, ext_name=ext_name)
     wb, bb = safety(wb, bb)
 
@@ -1715,7 +1611,7 @@ if __name__ == '__main__':
 
                 print(rep)
 
-                if len(damaged_links) > 8:
+                if len(damaged_links) > 6:
                     opt=False
 
                 SCENARIO_DIR = NETWORK_DIR
