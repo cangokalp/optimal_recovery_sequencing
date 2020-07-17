@@ -2,6 +2,7 @@
 <NUMBER OF NODES> 416											
 <FIRST THRU NODE> 39											
 <NUMBER OF LINKS> 914
+<DEMAND MULTIPLIER> 2
 <ORIGINAL HEADER>~ 	Tail	Head	Capacity (veh/h)	Length (ft)	Free Flow Time (min)	B	Power	Speed (ft/min) 	Toll 	Type	;
 <END OF METADATA>											
 
