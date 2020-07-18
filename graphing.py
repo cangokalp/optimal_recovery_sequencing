@@ -149,14 +149,11 @@ def prep_dictionaries(method_dict):
 
 def result_table(reps, file_path, broken, ks):
     pdb.set_trace()
-    filenames = ['beamsearch_solution_k2', 'beamsearch_solution_k8', 'beamsearch_solution_k32',
-                 'r_algo_solution_k2', 'r_algo_solution_k8', 'r_algo_solution_k32',
+    filenames = ['beamsearch_solution_k2', 'r_algo_solution_k2',  'beamsearch_solution_k32', 'r_algo_solution_k32',
                  'greedy_solution', 'importance_factor_bound']
 
     heuristic2 = {}
     r_heuristic2 = {}
-    heuristic8 = {}
-    r_heuristic8 = {}
     heuristic32 = {}
     r_heuristic32 = {}
 
@@ -167,7 +164,7 @@ def result_table(reps, file_path, broken, ks):
 
 
 
-    dict_list = [heuristic2, heuristic8, heuristic32, r_heuristic2, r_heuristic8, r_heuristic32, greedy, importance_factor]
+    dict_list = [heuristic2, r_heuristic2, heuristic32,  r_heuristic32, greedy, importance_factor]
     key_list = ['_obj', '_num_tap', '_elapsed']
 
     for method_dict in dict_list:
@@ -279,7 +276,7 @@ def result_table(reps, file_path, broken, ks):
 
     plt.ylabel('Normalized Metric Value')
     plt.xticks([(r + barWidth) for r in range(len(obj_means))],
-               ['M2', 'RM2', 'M8', 'RM8', 'M32', 'RM32', 'GM', 'IF'])
+               ['M2', 'RM2', 'M32', 'RM32', 'GM', 'IF'])
     # plt.title('Performance Comparison - ' + broken, fontsize=7)
     if broken != 10:
         txt = "# Broken Links: " + \
@@ -296,7 +293,7 @@ def result_table(reps, file_path, broken, ks):
 
     columns = ('Avg Rel Gap', 'Delta', 'Avg Tap Solved',
                'Delta', 'Avg Elapsed(s)', 'Delta')
-    rows = ['M2', 'RM2', 'M8', 'RM8', 'M32', 'RM32', 'GM', 'IF']
+    rows = ['M2', 'RM2', 'M32', 'RM32', 'GM', 'IF']
 
     plt.close()
 
