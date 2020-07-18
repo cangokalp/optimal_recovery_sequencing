@@ -226,7 +226,7 @@ def expand_sequence_b(node, a_link, level):
     return node, solved
 
 
-def orderlists(benefits, days, slack=0, reverse=True):
+def orderlists(benefits, days, slack=0, rem_keys=None, reverse=True):
     #
     # if sum(benefits) > slack:
     #     benefits = np.array(benefits)
@@ -238,6 +238,11 @@ def orderlists(benefits, days, slack=0, reverse=True):
         zip(bang4buck, days), reverse=reverse)]
     benefits = [x for _, x in sorted(
         zip(bang4buck, benefits), reverse=reverse)]
+
+    if rem_keys is not None:
+        rem_keys = [x for _, x in sorted(
+            zip(bang4buck, rem_keys), reverse=reverse)]
+        return _,_, rem_keys
 
     return benefits, days
 
@@ -374,7 +379,7 @@ def get_minlb(node, fwd_node, bwd_node, orderedb_benefits, orderedw_benefits, or
 
     return uncommon_number, common_number
 
-def set_bounds_bif(node, open_list_b, end_node, front_to_end=True, debug=False, best_feasible_soln=None, uncommon_number=0, common_number=0):
+def set_bounds_bif(node, open_list_b, end_node, front_to_end=True, debug=False, best_feasible_soln=None, uncommon_number=0, common_number=0, get_feas=False):
 
     sorted_d = sorted(damaged_dict.items(), key=lambda x: x[1])
 
@@ -396,6 +401,7 @@ def set_bounds_bif(node, open_list_b, end_node, front_to_end=True, debug=False, 
     if len(eligible_backward_connects) == 0:
         eligible_backward_connects = [end_node]
 
+    minother_end = None
     for other_end in eligible_backward_connects:
         ordered_days = []
         orderedw_benefits = []
@@ -425,18 +431,45 @@ def set_bounds_bif(node, open_list_b, end_node, front_to_end=True, debug=False, 
 
         if node.lb < minlb:
             minlb = node.lb
+            minother_end = other_end
+
         if node.ub < maxub:
             maxub = node.ub
 
     node.lb = minlb
     node.ub = maxub
 
+    if get_feas:
+        accrued = node.realized + minother_end.realized
+        union = node.visited.union(minother_end.visited)
+        remaining = set(damaged_dict.keys()).difference(union)
+        for key, value in sorted_d:
+            # print("%s: %s" % (key, value))
+            if key in remaining:
+                ordered_days.append(value)
+                orderedb_benefits.append(bb[key])
+
+        _, _, rem_ord = orderlists(orderedb_benefits, ordered_days, remaining, slack)
+
+        net_a = create_network(NETFILE, TRIPFILE)
+        net_a.not_fixed = remaining
+
+        for added in remaining:
+            net_a.not_fixed = set(remaining).union(minother_end.visited).difference(set(added))
+            tstt_after = solve_UE(net=net_a)
+            accrued += (tstt_after - node.before_eq_tstt) * damaged_dict[added]
+
+        new_feasible_path = node.path + remaining + minother_end.path
+        if accrued < best_feasible_soln.g:
+            best_feasible_soln.g = cur_obj
+            best_feasible_soln.path = new_feasible_path
+
     if node.lb > node.ub:
         pdb.set_trace()
 
     return uncommon_number, common_number
 
-def set_bounds_bib(node, open_list_f, start_node, front_to_end=True, best_feasible_soln=None, uncommon_number=0, common_number=0):
+def set_bounds_bib(node, open_list_f, start_node, front_to_end=True, best_feasible_soln=None, uncommon_number=0, common_number=0, get_feas=False):
 
     sorted_d = sorted(damaged_dict.items(), key=lambda x: x[1])
 
@@ -456,6 +489,7 @@ def set_bounds_bib(node, open_list_f, start_node, front_to_end=True, best_feasib
     if len(eligible_backward_connects) == 0:
         eligible_backward_connects = [start_node]
 
+    minother_end = None
     for other_end in eligible_backward_connects:
         ordered_days = []
         orderedw_benefits = []
@@ -482,11 +516,37 @@ def set_bounds_bib(node, open_list_f, start_node, front_to_end=True, best_feasib
 
         if node.lb < minlb:
             minlb = node.lb
+            minother_end = other_end
         if node.ub < maxub:
             maxub = node.ub
 
     node.lb = minlb
     node.ub = maxub
+
+    if get_feas:
+        accrued = node.realized + minother_end.realized
+        union = node.visited.union(minother_end.visited)
+        remaining = set(damaged_dict.keys()).difference(union)
+        for key, value in sorted_d:
+            # print("%s: %s" % (key, value))
+            if key in remaining:
+                ordered_days.append(value)
+                orderedb_benefits.append(bb[key])
+
+        _, _, rem_ord = orderlists(orderedb_benefits, ordered_days, remaining, slack)
+
+        net_a = create_network(NETFILE, TRIPFILE)
+        net_a.not_fixed = remaining
+        pdb.set_trace()
+        for added in remaining:
+            net_a.not_fixed = set(remaining).union(node.path).difference(set(added))
+            tstt_after = solve_UE(net=net_a)
+            accrued += (tstt_after - node.before_eq_tstt) * damaged_dict[added]
+
+        new_feasible_path = minother_end.path + remaining + node.path
+        if accrued < best_feasible_soln.g:
+            best_feasible_soln.g = cur_obj
+            best_feasible_soln.path = new_feasible_path
 
     if node.lb > node.ub:
         pdb.set_trace()
@@ -958,18 +1018,18 @@ def search(start_node, end_node, best_ub, beam_search=False, beam_k=None):
 
         # check termination
         if len(open_list_b) > 0:
-            current_node = open_list_b[0]
+            minbnode = open_list_b[0]
             for index, item in enumerate(open_list_b):
-                if item.f <= current_node.f:
-                    current_node = item
-                    kb = current_node.f
+                if item.f <= minbnode.f:
+                    minbnode = item
+                    kb = minbnode.f
 
         if len(open_list_f) > 0:
-            current_node = open_list_f[0]
+            minfnode = open_list_f[0]
             for index, item in enumerate(open_list_f):
-                if item.f <= current_node.f:
-                    current_node = item
-                    kf = current_node.f
+                if item.f <= minfnode.f:
+                    minfnode = item
+                    kf = minfnode.f
 
         if max(kf, kb) >= best_ub and best_feasible_soln.path is not None:
             return best_feasible_soln.path, best_feasible_soln.g, num_tap_solved, tot_child, uncommon_number, common_number, num_purged
@@ -984,6 +1044,15 @@ def search(start_node, end_node, best_ub, beam_search=False, beam_k=None):
                 open_list_b, open_list_f, closed_list_b, closed_list_f, num_purged = purge(
                     open_list_b, open_list_f, closed_list_b, closed_list_f,
                     max_level_f, max_level_b, beam_k, num_purged)
+
+        if iter_count % 100 == 0:
+
+            if kf < kb:
+                uncommon_number, common_number = set_bounds_bif(minfnode, open_list_b, end_node, front_to_end=True, best_feasible_soln=best_feasible_soln, uncommon_number=uncommon_number, common_number=common_number, get_feas=True)
+            else:
+                uncommon_number, common_number = set_bounds_bib(minbnode, open_list_f, end_node, front_to_end=True, best_feasible_soln=best_feasible_soln, uncommon_number=uncommon_number, common_number=common_number, get_feas=True)
+
+
 
         bar.update(iter_count)
     if best_feasible_soln.path is None:
