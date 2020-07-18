@@ -1426,8 +1426,13 @@ def greedy_heuristic(net_after, after_eq_tstt, before_eq_tstt):
                 after_fix_tstt = solve_UE(net=test_net)
                 tap_solved += 1
 
+                diff = after_ - after_fix_tstt
+                if wb[link] > diff:
+                    wb[link] = diff
+                if bb[link] < diff:
+                    bb[link] = diff
 
-                remaining = (after_ - after_fix_tstt) * \
+                remaining = diff * \
                     (tot_days - damaged_dict[link])
 
                 improvements.append(remaining)
@@ -1470,11 +1475,8 @@ def get_wb(damaged_links, save_dir, approx, relax=False, bsearch=False, ext_name
 
     net_before.save_dir = save_dir
     net_after.save_dir = save_dir
-    print(after_eq_tstt, before_eq_tstt)
 
-    benefit_analysis_st = time.time()
     wb = worst_benefit(net_before, damaged_links, before_eq_tstt, relax=relax, bsearch=bsearch, ext_name=ext_name)
-    print(wb)
     bb = best_benefit(net_after, damaged_links, after_eq_tstt, relax=relax,  bsearch=bsearch, ext_name=ext_name)
     wb, bb = safety(wb, bb)
 
@@ -1511,7 +1513,7 @@ def get_wb(damaged_links, save_dir, approx, relax=False, bsearch=False, ext_name
     start_node.relax = relax
     end_node.relax = relax
 
-    return wb, bb, start_node, end_node, net_after, net_before, after_eq_tstt, before_eq_tstt, benefit_analysis_st
+    return wb, bb, start_node, end_node, net_after, net_before, after_eq_tstt, before_eq_tstt, None
 
 
 if __name__ == '__main__':
@@ -1648,9 +1650,9 @@ if __name__ == '__main__':
                     t.add_row([before_eq_tstt, after_eq_tstt])
                     print(t)
                 else:
-
-                    wb, bb, start_node, end_node, net_after, net_before, after_eq_tstt, before_eq_tstt, benefit_analysis_st = get_wb(
-                        damaged_links, save_dir, approx, relax=False)
+                    benefit_analysis_st = time.time()
+                    wb, bb, start_node, end_node, net_after, net_before, after_eq_tstt, before_eq_tstt, _ = get_wb(
+                        damaged_links, save_dir, approx)
                     benefit_analysis_elapsed = time.time() - benefit_analysis_st
 
                     # approx solution
@@ -1680,11 +1682,12 @@ if __name__ == '__main__':
 
                         print('optimal obj: {}, optimal path: {}'.format(opt_obj, opt_soln))
 
+                    memory1 = deepcopy(memory)
                     # feasible_soln_taps = num_damaged * (num_damaged + 1) / 2.0
                     if full:
                         print('full')
                         algo_num_tap = best_benefit_taps + worst_benefit_taps
-                        best_ub = importance_obj
+                        best_ub = greedy_obj
 
                         fname = save_dir + '/algo_solution'
 
@@ -1692,7 +1695,7 @@ if __name__ == '__main__':
                             search_start = time.time()
                             algo_path, algo_obj, search_tap_solved, tot_child, uncommon_number, common_number, _ = search(
                                 start_node, end_node, best_ub)
-                            search_elapsed = time.time() - search_start + importance_elapsed
+                            search_elapsed = time.time() - search_start + greedy_elapsed
 
                             net_after, after_eq_tstt = state_after(damaged_links, save_dir, real=True)
                             net_before, before_eq_tstt = state_before(damaged_links, save_dir, real=True)
@@ -1702,7 +1705,7 @@ if __name__ == '__main__':
                             algo_obj, _, _ = eval_sequence(
                                 first_net, algo_path, after_eq_tstt, before_eq_tstt, damaged_dict=damaged_dict)
 
-                            algo_num_tap += search_tap_solved + importance_num_tap
+                            algo_num_tap += search_tap_solved + greedy_num_tap
                             algo_elapsed = search_elapsed + benefit_analysis_elapsed
 
                             save(fname + '_obj', algo_obj)
@@ -1730,16 +1733,15 @@ if __name__ == '__main__':
                             ext_name = '_k' + str(k)
                             del memory
                             memory = {}
+                            memory = deepcopy(memory1)
+                            pdb.set_trace()
 
-                            wb, bb, start_node, end_node, net_after, net_before, after_eq_tstt, before_eq_tstt, benefit_analysis_st = get_wb(
-                                damaged_links, save_dir, approx, relax=False, bsearch=True, ext_name=ext_name)
-                            print(wb)
-                            print(bb)
-                            benefit_analysis_elapsed = time.time() - benefit_analysis_st
+                            # wb, bb, start_node, end_node, net_after, net_before, after_eq_tstt, before_eq_tstt, benefit_analysis_st = get_wb(
+                            #     damaged_links, save_dir, approx, relax=False, bsearch=True, ext_name=ext_name)
+                            # benefit_analysis_elapsed = time.time() - benefit_analysis_st
 
                             beamsearch_num_tap = best_benefit_taps + worst_benefit_taps
-                            best_bound = importance_obj
-
+                            best_bound = greedy_obj
 
                             start_node.relax = False
                             end_node.relax = False
@@ -1748,7 +1750,7 @@ if __name__ == '__main__':
                                 search_start = time.time()
                                 beamsearch_path, beamsearch_obj, beamsearch_tap_solved, tot_childbs, uncommon_numberbs, common_numberbs, num_purgebs = search(
                                     start_node, end_node, best_bound, beam_search=beam_search, beam_k=k)
-                                search_elapsed = time.time() - search_start + importance_elapsed
+                                search_elapsed = time.time() - search_start + greedy_elapsed
 
                                 net_after, after_eq_tstt = state_after(damaged_links, save_dir, real=True)
                                 net_before, before_eq_tstt = state_before(damaged_links, save_dir, real=True)
@@ -1758,7 +1760,7 @@ if __name__ == '__main__':
                                 beamsearch_obj, _, _ = eval_sequence(
                                     first_net, beamsearch_path, after_eq_tstt, before_eq_tstt, damaged_dict=damaged_dict)
 
-                                beamsearch_num_tap += beamsearch_tap_solved + importance_num_tap
+                                beamsearch_num_tap += beamsearch_tap_solved + greedy_num_tap
                                 beamsearch_elapsed = search_elapsed + benefit_analysis_elapsed
 
                                 save(fname + '_obj', beamsearch_obj)
@@ -1782,14 +1784,15 @@ if __name__ == '__main__':
                             ext_name = 'r_k' + str(k)
                             print('reg bsearch finished')
                             del memory
-                            memory = {}
+                            memory = deepcopy(memory1)
+                            pdb.set_trace()
 
-                            wb, bb, start_node, end_node, net_after, net_before, after_eq_tstt, before_eq_tstt, benefit_analysis_st = get_wb(
-                                damaged_links, save_dir, approx, relax=True, bsearch=True, ext_name=ext_name)
-                            benefit_analysis_elapsed = time.time() - benefit_analysis_st
+                            # wb, bb, start_node, end_node, net_after, net_before, after_eq_tstt, before_eq_tstt, benefit_analysis_st = get_wb(
+                            #     damaged_links, save_dir, approx, relax=True, bsearch=True, ext_name=ext_name)
+                            # benefit_analysis_elapsed = time.time() - benefit_analysis_st
 
                             r_algo_num_tap = best_benefit_taps + worst_benefit_taps
-                            best_bound = importance_obj
+                            best_bound = greedy_obj
 
 
                             start_node.relax = True
@@ -1799,7 +1802,7 @@ if __name__ == '__main__':
                                 search_start = time.time()
                                 r_algo_path, r_algo_obj, r_search_tap_solved, tot_childr, uncommon_numberr, common_numberr, num_purger = search(
                                     start_node, end_node, best_bound, beam_search=beam_search, beam_k=k)
-                                search_elapsed = time.time() - search_start + importance_elapsed
+                                search_elapsed = time.time() - search_start + greedy_elapsed
 
                                 net_after, after_eq_tstt = state_after(damaged_links, save_dir, real=True)
                                 net_before, before_eq_tstt = state_before(damaged_links, save_dir, real=True)
@@ -1809,7 +1812,7 @@ if __name__ == '__main__':
                                 r_algo_obj, _, _ = eval_sequence(
                                     first_net, r_algo_path, after_eq_tstt, before_eq_tstt, damaged_dict=damaged_dict)
 
-                                r_algo_num_tap += r_search_tap_solved + importance_num_tap
+                                r_algo_num_tap += r_search_tap_solved + greedy_num_tap
                                 r_algo_elapsed = search_elapsed + benefit_analysis_elapsed
 
                                 save(fname + '_obj', r_algo_obj)
