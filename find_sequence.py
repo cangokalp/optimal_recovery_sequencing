@@ -449,7 +449,8 @@ def set_bounds_bif(node, open_list_b, end_node, front_to_end=True, debug=False, 
                 ordered_days.append(value)
                 orderedb_benefits.append(bb[key])
 
-        _, _, rem_ord = orderlists(orderedb_benefits, ordered_days, remaining, slack)
+        pdb.set_trace()
+        _, _, rem_ord = orderlists(orderedb_benefits, ordered_days, rem_keys=remaining)
 
         net_a = create_network(NETFILE, TRIPFILE)
         net_a.not_fixed = remaining
@@ -533,11 +534,11 @@ def set_bounds_bib(node, open_list_f, start_node, front_to_end=True, best_feasib
                 ordered_days.append(value)
                 orderedb_benefits.append(bb[key])
 
-        _, _, rem_ord = orderlists(orderedb_benefits, ordered_days, remaining, slack)
+        pdb.set_trace()
+        _, _, rem_ord = orderlists(orderedb_benefits, ordered_days, rem_keys=remaining)
 
         net_a = create_network(NETFILE, TRIPFILE)
         net_a.not_fixed = remaining
-        pdb.set_trace()
 
         for added in remaining:
             net_a.not_fixed = set(remaining).union(node.path).difference(set(added))
