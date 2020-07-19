@@ -538,6 +538,7 @@ def set_bounds_bib(node, open_list_f, start_node, front_to_end=True, best_feasib
         net_a = create_network(NETFILE, TRIPFILE)
         net_a.not_fixed = remaining
         pdb.set_trace()
+
         for added in remaining:
             net_a.not_fixed = set(remaining).union(node.path).difference(set(added))
             tstt_after = solve_UE(net=net_a)
@@ -1050,7 +1051,7 @@ def search(start_node, end_node, best_ub, beam_search=False, beam_k=None):
             if kf < kb:
                 uncommon_number, common_number = set_bounds_bif(minfnode, open_list_b, end_node, front_to_end=True, best_feasible_soln=best_feasible_soln, uncommon_number=uncommon_number, common_number=common_number, get_feas=True)
             else:
-                uncommon_number, common_number = set_bounds_bib(minbnode, open_list_f, end_node, front_to_end=True, best_feasible_soln=best_feasible_soln, uncommon_number=uncommon_number, common_number=common_number, get_feas=True)
+                uncommon_number, common_number = set_bounds_bib(minbnode, open_list_f, start_node, front_to_end=True, best_feasible_soln=best_feasible_soln, uncommon_number=uncommon_number, common_number=common_number, get_feas=True)
 
 
 
@@ -1624,7 +1625,6 @@ if __name__ == '__main__':
                 memory = {}
 
                 net = create_network(NETFILE, TRIPFILE)
-
                 net.not_fixed = set([])
                 solve_UE(net=net)
 
@@ -1803,7 +1803,6 @@ if __name__ == '__main__':
                             del memory
                             memory = {}
                             memory = deepcopy(memory1)
-                            pdb.set_trace()
 
                             # wb, bb, start_node, end_node, net_after, net_before, after_eq_tstt, before_eq_tstt, benefit_analysis_st = get_wb(
                             #     damaged_links, save_dir, approx, relax=False, bsearch=True, ext_name=ext_name)
@@ -1854,7 +1853,6 @@ if __name__ == '__main__':
                             print('reg bsearch finished')
                             del memory
                             memory = deepcopy(memory1)
-                            pdb.set_trace()
 
                             # wb, bb, start_node, end_node, net_after, net_before, after_eq_tstt, before_eq_tstt, benefit_analysis_st = get_wb(
                             #     damaged_links, save_dir, approx, relax=True, bsearch=True, ext_name=ext_name)
