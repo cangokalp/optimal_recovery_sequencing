@@ -454,13 +454,14 @@ def set_bounds_bif(node, open_list_b, end_node, front_to_end=True, debug=False, 
 
         net_a = create_network(NETFILE, TRIPFILE)
         net_a.not_fixed = remaining
+        tstt_after = node.tstt_after
 
         for added in remaining:
             net_a.not_fixed = set(remaining).union(minother_end.visited).difference(set(added))
-            tstt_after = solve_UE(net=net_a)
             accrued += (tstt_after - node.before_eq_tstt) * damaged_dict[added]
+            tstt_after = solve_UE(net=net_a)
 
-        new_feasible_path = node.path + remaining + minother_end.path
+        new_feasible_path = node.path + rem_ord + minother_end.path
         if accrued < best_feasible_soln.g:
             best_feasible_soln.g = cur_obj
             best_feasible_soln.path = new_feasible_path
@@ -534,18 +535,17 @@ def set_bounds_bib(node, open_list_f, start_node, front_to_end=True, best_feasib
                 ordered_days.append(value)
                 orderedb_benefits.append(bb[key])
 
-        pdb.set_trace()
         _, _, rem_ord = orderlists(orderedb_benefits, ordered_days, rem_keys=remaining)
 
         net_a = create_network(NETFILE, TRIPFILE)
         net_a.not_fixed = remaining
-
+        tstt_before = minother_end.after
         for added in remaining:
             net_a.not_fixed = set(remaining).union(node.path).difference(set(added))
-            tstt_after = solve_UE(net=net_a)
-            accrued += (tstt_after - node.before_eq_tstt) * damaged_dict[added]
+            accrued += (tstt_before - node.before_eq_tstt) * damaged_dict[added]
+            tstt_before = solve_UE(net=net_a)
 
-        new_feasible_path = minother_end.path + remaining + node.path
+        new_feasible_path = minother_end.path + rem_ord + node.path
         if accrued < best_feasible_soln.g:
             best_feasible_soln.g = cur_obj
             best_feasible_soln.path = new_feasible_path
@@ -1039,7 +1039,7 @@ def search(start_node, end_node, best_ub, beam_search=False, beam_k=None):
         if  (len(open_list_f) == 0 or len(open_list_b) == 0) and best_feasible_soln.path is not None:
             return best_feasible_soln.path, best_feasible_soln.g, num_tap_solved, tot_child, uncommon_number, common_number, num_purged
 
-        if iter_count % 10 == 0:
+        if iter_count % 5 == 0:
             # print('length of forward open list: ', len(open_list_f))
             # print('length of backwards open list: ', len(open_list_b))
             if beam_search:
