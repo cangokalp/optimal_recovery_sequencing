@@ -539,7 +539,7 @@ def set_bounds_bib(node, open_list_f, start_node, front_to_end=True, best_feasib
 
         net_a = create_network(NETFILE, TRIPFILE)
         net_a.not_fixed = remaining
-        tstt_before = minother_end.after
+        tstt_before = minother_end.tstt_after
         for added in remaining:
             net_a.not_fixed = set(remaining).union(node.path).difference(set(added))
             accrued += (tstt_before - node.before_eq_tstt) * damaged_dict[added]
