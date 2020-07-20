@@ -340,6 +340,7 @@ def get_minlb(node, fwd_node, bwd_node, orderedb_benefits, orderedw_benefits, or
             if i == 0:
                 fwd_b = deepcopy(b)
                 fwd_days_b = deepcopy(days_b)
+                fwd_b, fwd_days_b = orderlists(fwd_b, fwd_days_b, reverse=False)
                 b_tstt = sumb
 
             else:
