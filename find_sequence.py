@@ -571,7 +571,7 @@ def expand_forward(start_node, end_node, open_list_b, open_list_f, closed_list_b
     open_list_f.pop(current_index)
     closed_list_f.append(current_node)
 
-    if max_level_b + len(current_node_visited) + 1 >= len(damaged_dict):
+    if max_level_b + len(current_node.visited) + 1 >= len(damaged_dict):
 
         cur_visited = current_node.visited
         for other_end in open_list_b + closed_list_b:
@@ -736,7 +736,7 @@ def expand_backward(start_node, end_node, open_list_b, open_list_f, closed_list_
     closed_list_b.append(current_node)
 
 
-    if max_level_f + len(current_node_visited) + 1 >= len(damaged_dict):
+    if max_level_f + len(current_node.visited) + 1 >= len(damaged_dict):
         cur_visited = current_node.visited
         for other_end in open_list_f + closed_list_f:
         # for other_end in open_list_f:
