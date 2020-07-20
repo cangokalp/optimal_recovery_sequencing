@@ -463,7 +463,7 @@ def set_bounds_bif(node, open_list_b, end_node, front_to_end=True, debug=False, 
 
         new_feasible_path = node.path + rem_ord + minother_end.path
         if accrued < best_feasible_soln.g:
-            best_feasible_soln.g = cur_obj
+            best_feasible_soln.g = accrued
             best_feasible_soln.path = new_feasible_path
 
     if node.lb > node.ub:
@@ -547,7 +547,7 @@ def set_bounds_bib(node, open_list_f, start_node, front_to_end=True, best_feasib
 
         new_feasible_path = minother_end.path + rem_ord + node.path
         if accrued < best_feasible_soln.g:
-            best_feasible_soln.g = cur_obj
+            best_feasible_soln.g = accrued
             best_feasible_soln.path = new_feasible_path
 
     if node.lb > node.ub:
@@ -555,7 +555,7 @@ def set_bounds_bib(node, open_list_f, start_node, front_to_end=True, best_feasib
     return uncommon_number, common_number
 
 
-def expand_forward(start_node, end_node, open_list_b, open_list_f, closed_list_b, closed_list_f, best_ub, best_feasible_soln, num_tap_solved, front_to_end=False, uncommon_number=0, tot_child=0, common_number=0):
+def expand_forward(start_node, end_node, open_list_b, open_list_f, closed_list_b, closed_list_f, best_ub, best_feasible_soln, num_tap_solved, max_level_b, front_to_end=False, uncommon_number=0, tot_child=0, common_number=0):
     debug = False
     # print('in forward search')
 
@@ -571,7 +571,8 @@ def expand_forward(start_node, end_node, open_list_b, open_list_f, closed_list_b
     open_list_f.pop(current_index)
     closed_list_f.append(current_node)
 
-    if current_node.level >= 2:
+    if max_level_b + len(current_node_visited) + 1 >= len(damaged_dict):
+
         cur_visited = current_node.visited
         for other_end in open_list_b + closed_list_b:
         # for other_end in open_list_b:
@@ -719,7 +720,7 @@ def expand_forward(start_node, end_node, open_list_b, open_list_f, closed_list_b
     return open_list_f, closed_list_f, best_ub, best_feasible_soln, num_tap_solved, current_level, tot_child, uncommon_number, common_number
 
 
-def expand_backward(start_node, end_node, open_list_b, open_list_f, closed_list_b, closed_list_f, best_ub, best_feasible_soln, num_tap_solved, front_to_end=False, uncommon_number=0, tot_child=0, common_number=0):
+def expand_backward(start_node, end_node, open_list_b, open_list_f, closed_list_b, closed_list_f, best_ub, best_feasible_soln, num_tap_solved, max_level_f, front_to_end=False, uncommon_number=0, tot_child=0, common_number=0):
 
     # Loop until you find the end
     current_node = open_list_b[0]
@@ -734,7 +735,8 @@ def expand_backward(start_node, end_node, open_list_b, open_list_f, closed_list_
     open_list_b.pop(current_index)
     closed_list_b.append(current_node)
 
-    if len(current_node.visited) >= 2:
+
+    if max_level_f + len(current_node_visited) + 1 >= len(damaged_dict):
         cur_visited = current_node.visited
         for other_end in open_list_f + closed_list_f:
         # for other_end in open_list_f:
@@ -1005,12 +1007,12 @@ def search(start_node, end_node, best_ub, beam_search=False, beam_k=None):
 
         if search_direction == 'Forward':
             open_list_f, closed_list_f, best_ub, best_feasible_soln, num_tap_solved, level_f, tot_child, uncommon_number, common_number = expand_forward(
-                start_node, end_node, open_list_b, open_list_f, closed_list_b, closed_list_f, best_ub, best_feasible_soln, num_tap_solved, front_to_end=False, uncommon_number=uncommon_number, tot_child=tot_child, common_number=common_number)
+                start_node, end_node, open_list_b, open_list_f, closed_list_b, closed_list_f, best_ub, best_feasible_soln, num_tap_solved, max_level_b, front_to_end=False, uncommon_number=uncommon_number, tot_child=tot_child, common_number=common_number)
             max_level_f = max(max_level_f, level_f)
 
         else:
             open_list_b, closed_list_b, best_ub, best_feasible_soln, num_tap_solved, level_b, tot_child, uncommon_number, common_number = expand_backward(
-                start_node, end_node, open_list_b, open_list_f, closed_list_b, closed_list_f, best_ub, best_feasible_soln, num_tap_solved, front_to_end=False, uncommon_number=uncommon_number, tot_child=tot_child, common_number=common_number)
+                start_node, end_node, open_list_b, open_list_f, closed_list_b, closed_list_f, best_ub, best_feasible_soln, num_tap_solved, max_level_f, front_to_end=False, uncommon_number=uncommon_number, tot_child=tot_child, common_number=common_number)
             max_level_b = max(max_level_b, level_b)
 
 
@@ -1047,7 +1049,7 @@ def search(start_node, end_node, best_ub, beam_search=False, beam_k=None):
                     open_list_b, open_list_f, closed_list_b, closed_list_f,
                     max_level_f, max_level_b, beam_k, num_purged)
 
-        if iter_count % 100 == 0:
+        if iter_count % 50 == 0:
 
             if kf < kb:
                 uncommon_number, common_number = set_bounds_bif(minfnode, open_list_b, end_node, front_to_end=True, best_feasible_soln=best_feasible_soln, uncommon_number=uncommon_number, common_number=common_number, get_feas=True)
