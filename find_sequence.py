@@ -873,16 +873,16 @@ def purge(open_list_b, open_list_f, closed_list_b, closed_list_f, max_level_f, m
 
         for idx, ofn in enumerate(open_list_f):
             cur_lev = ofn.level
-            if cur_lev > 2:
+            if cur_lev >= 2:
                 try:
-                    cur_max = np.max(values_ofn[:, cur_lev-3])
-                    max_idx = np.argmax(values_ofn[:, cur_lev-3])
+                    cur_max = np.max(values_ofn[:, cur_lev-2])
+                    max_idx = np.argmax(values_ofn[:, cur_lev-2])
                 except:
                     pdb.set_trace()
 
                 if ofn.f < cur_max:
-                    indices_ofn[max_idx, cur_lev-3] = idx
-                    values_ofn[max_idx, cur_lev-3] = ofn.f
+                    indices_ofn[max_idx, cur_lev-2] = idx
+                    values_ofn[max_idx, cur_lev-2] = ofn.f
             else:
                 keep_f.append(idx)
         indices_ofn = indices_ofn.ravel()
@@ -909,16 +909,16 @@ def purge(open_list_b, open_list_f, closed_list_b, closed_list_f, max_level_f, m
 
         for idx, ofn in enumerate(open_list_b):
             cur_lev = len(damaged_dict) - ofn.level
-            if cur_lev > 2:
+            if cur_lev >= 2:
                 try:
-                    cur_max = np.max(values_ofn[:, cur_lev-3])
-                    max_idx = np.argmax(values_ofn[:, cur_lev-3])
+                    cur_max = np.max(values_ofn[:, cur_lev-2])
+                    max_idx = np.argmax(values_ofn[:, cur_lev-2])
                 except:
                     pdb.set_trace()
 
                 if ofn.f < cur_max:
-                    indices_ofn[max_idx, cur_lev-3] = idx
-                    values_ofn[max_idx, cur_lev-3] = ofn.f
+                    indices_ofn[max_idx, cur_lev-2] = idx
+                    values_ofn[max_idx, cur_lev-2] = ofn.f
             else:
                 keep_b.append(idx)
 
