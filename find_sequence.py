@@ -450,7 +450,6 @@ def set_bounds_bif(node, open_list_b, end_node, front_to_end=True, debug=False, 
                 ordered_days.append(value)
                 orderedb_benefits.append(bb[key])
 
-        pdb.set_trace()
         _, _, rem_ord = orderlists(orderedb_benefits, ordered_days, rem_keys=remaining)
 
         net_a = create_network(NETFILE, TRIPFILE)
@@ -680,13 +679,6 @@ def expand_forward(start_node, end_node, open_list_b, open_list_f, closed_list_b
         add = True
         removal = []
 
-        # for open_node in open_list_f:
-        #     if child == open_node:
-        #         if child.g > open_node.g:
-        #             continue
-        #         else:
-        #             removal.append(open_node)
-
         for open_node in open_list_f:
             if child == open_node:
                 if child.g > open_node.g:
@@ -705,11 +697,7 @@ def expand_forward(start_node, end_node, open_list_b, open_list_f, closed_list_b
                     if child.g >= closed_node.g:
                         add = False
                         break
-            # for idx, closed_node_fixed in enumerate(closed_list_f):
-            #     if child.fixed == closed_node_fixed:
-            #         if child.g > closed_list_f_g[idx]:
-            #             add = False
-            #             break
+
 
 
         if add:
@@ -1016,7 +1004,6 @@ def search(start_node, end_node, best_ub, beam_search=False, beam_k=None):
                 start_node, end_node, open_list_b, open_list_f, closed_list_b, closed_list_f, best_ub, best_feasible_soln, num_tap_solved, max_level_f, front_to_end=False, uncommon_number=uncommon_number, tot_child=tot_child, common_number=common_number)
             max_level_b = max(max_level_b, level_b)
 
-
         # if iter_count % 100 == 0:
         #     print('length of forward open list: ', len(open_list_f))
         #     print('length of backwards open list: ', len(open_list_b))
@@ -1039,16 +1026,23 @@ def search(start_node, end_node, best_ub, beam_search=False, beam_k=None):
         if max(kf, kb) >= best_ub and best_feasible_soln.path is not None:
             return best_feasible_soln.path, best_feasible_soln.g, num_tap_solved, tot_child, uncommon_number, common_number, num_purged
 
-        if  (len(open_list_f) == 0 or len(open_list_b) == 0) and best_feasible_soln.path is not None:
+        if (len(open_list_f) == 0 or len(open_list_b) == 0) and best_feasible_soln.path is not None:
             return best_feasible_soln.path, best_feasible_soln.g, num_tap_solved, tot_child, uncommon_number, common_number, num_purged
 
+
         if iter_count % 5 == 0:
+            pdb.set_trace()
             # print('length of forward open list: ', len(open_list_f))
             # print('length of backwards open list: ', len(open_list_b))
             if beam_search:
                 open_list_b, open_list_f, closed_list_b, closed_list_f, num_purged = purge(
                     open_list_b, open_list_f, closed_list_b, closed_list_f,
                     max_level_f, max_level_b, beam_k, num_purged)
+        pdb.set_trace()
+
+        if best_feasible_soln.g < best_ub:
+            best_ub = best_feasible_soln.g
+
 
         if iter_count % 50 == 0:
 
