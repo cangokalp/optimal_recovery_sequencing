@@ -1038,7 +1038,7 @@ def search(start_node, end_node, best_ub, beam_search=False, beam_k=None):
                 open_list_b, open_list_f, closed_list_b, closed_list_f, num_purged = purge(
                     open_list_b, open_list_f, closed_list_b, closed_list_f,
                     max_level_f, max_level_b, beam_k, num_purged)
-        pdb.set_trace()
+            pdb.set_trace()
 
         if best_feasible_soln.g < best_ub:
             best_ub = best_feasible_soln.g
