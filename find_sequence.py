@@ -908,6 +908,8 @@ def purge(open_list_b, open_list_f, closed_list_b, closed_list_f, max_level_f, m
         indices_ofn = np.ones((beam_k, max_level_f - 1)) * np.inf
 
         for idx, ofn in enumerate(open_list_b):
+            pdb.set_trace()
+
             cur_lev = len(damaged_dict) - ofn.level
             if cur_lev >= 2:
                 try:
@@ -925,12 +927,13 @@ def purge(open_list_b, open_list_f, closed_list_b, closed_list_f, max_level_f, m
         indices_ofn = indices_ofn.ravel()
         indices_ofn = indices_ofn[indices_ofn < 1000]
         keepinds = np.concatenate((np.array(keep_b), indices_ofn), axis=None).astype(int)
-        
+        pdb.set_trace()
+
         not_kept = np.delete(np.arange(len(open_list_b)), keepinds)
         for i in not_kept:
             not_kept_node = open_list_b[i]
             closed_list_b.append(not_kept_node)
-
+        pdb.set_trace()
         open_list_b = list(np.array(open_list_b)[keepinds])
 
     num_purged += len(not_kept)
@@ -1044,7 +1047,7 @@ def search(start_node, end_node, best_ub, beam_search=False, beam_k=None):
             best_ub = best_feasible_soln.g
 
 
-        if iter_count % 50 == 0:
+        if iter_count % 25 == 0:
 
             if kf < kb:
                 uncommon_number, common_number = set_bounds_bif(minfnode, open_list_b, end_node, front_to_end=True, best_feasible_soln=best_feasible_soln, uncommon_number=uncommon_number, common_number=common_number, get_feas=True)
