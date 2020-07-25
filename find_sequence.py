@@ -1600,7 +1600,6 @@ if __name__ == '__main__':
     full = args.full
     rand_gen = args.random
     opt = True
-    np.random.seed(0)
 
     NETWORK = os.path.join(FOLDER, net_name)
     JSONFILE = os.path.join(NETWORK, net_name.lower() + '.geojson')
@@ -1672,7 +1671,7 @@ if __name__ == '__main__':
                 # all_links = [lnk for lnk in net.link.keys()]
 
                 all_links = sorted(all_links)
-                np.random.seed(rep)
+                np.random.seed((rep+1)*42+int(num_broken))
                 damaged_links = np.random.choice(all_links, num_broken, replace=False)
                 damaged_dict = {}
 
@@ -1793,7 +1792,7 @@ if __name__ == '__main__':
 
                     if beam_search:
 
-                        ks = [2, int(len(damaged_links)/4)]
+                        ks = [2, int(len(damaged_links)/2)]
 
                         for k in ks:
 
