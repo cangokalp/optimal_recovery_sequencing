@@ -355,7 +355,7 @@ def get_minlb(node, fwd_node, bwd_node, orderedb_benefits, orderedw_benefits, or
         node.ub += sum(days_b) * (forward_tstt - node.before_eq_tstt)
         uncommon_number += 1
 
-    node.ub = max(node.ub, sum(days_b) * (forward_tstt - node.before_eq_tstt) + orig_ub)
+    node.ub = min(node.ub, sum(days_b) * (forward_tstt - node.before_eq_tstt) + orig_ub)
 
     #
     # if backward_ub < node.ub:
@@ -424,8 +424,6 @@ def set_bounds_bif(node, open_list_b, end_node, front_to_end=True, debug=False, 
         forward_tstt = node.tstt_after
         backward_tstt = other_end.tstt_before
 
-        # if node.path == ['(12,13)']:
-        # pdb.set_trace()
 
         uncommon_number, common_number = get_minlb(node, node, other_end, orderedb_benefits,
                   orderedw_benefits, ordered_days, forward_tstt, backward_tstt, best_feasible_soln=best_feasible_soln, uncommon_number=uncommon_number, common_number=common_number)
@@ -549,7 +547,7 @@ def set_bounds_bib(node, open_list_f, start_node, front_to_end=True, best_feasib
         if accrued < best_feasible_soln.g:
             best_feasible_soln.g = accrued
             best_feasible_soln.path = new_feasible_path
-
+            print(accrued)
     if node.lb > node.ub:
         pdb.set_trace()
     return uncommon_number, common_number
@@ -864,25 +862,25 @@ def expand_backward(start_node, end_node, open_list_b, open_list_f, closed_list_
     return open_list_b, closed_list_b, best_ub, best_feasible_soln, num_tap_solved, current_level, tot_child, uncommon_number, common_number
 
 def purge(open_list_b, open_list_f, closed_list_b, closed_list_f, max_level_f, max_level_b, beam_k, num_purged):
-
+    starting = int(len(damaged_dict)/2)
     keep_f =[]
     not_kept = []
-    if max_level_f >= 2:
+    if max_level_f > starting:
         values_ofn = np.ones((beam_k, max_level_f - 1)) * np.inf
         indices_ofn = np.ones((beam_k, max_level_f - 1)) * np.inf
 
         for idx, ofn in enumerate(open_list_f):
             cur_lev = ofn.level
-            if cur_lev >= 2:
+            if cur_lev > starting:
                 try:
-                    cur_max = np.max(values_ofn[:, cur_lev-2])
-                    max_idx = np.argmax(values_ofn[:, cur_lev-2])
+                    cur_max = np.max(values_ofn[:, cur_lev-(starting+1)])
+                    max_idx = np.argmax(values_ofn[:, cur_lev-(starting+1)])
                 except:
                     pdb.set_trace()
 
                 if ofn.f < cur_max:
-                    indices_ofn[max_idx, cur_lev-2] = idx
-                    values_ofn[max_idx, cur_lev-2] = ofn.f
+                    indices_ofn[max_idx, cur_lev-(starting+1)] = idx
+                    values_ofn[max_idx, cur_lev-(starting+1)] = ofn.f
             else:
                 keep_f.append(idx)
         indices_ofn = indices_ofn.ravel()
@@ -902,23 +900,23 @@ def purge(open_list_b, open_list_f, closed_list_b, closed_list_f, max_level_f, m
     not_kept = []
     max_level_b = len(damaged_dict) - max_level_b
 
-    if max_level_b >= 2:
+    if max_level_b > starting:
         values_ofn = np.ones((beam_k, max_level_b - 1)) * np.inf
         indices_ofn = np.ones((beam_k, max_level_b - 1)) * np.inf
 
         for idx, ofn in enumerate(open_list_b):
 
             cur_lev = len(damaged_dict) - ofn.level
-            if cur_lev >= 2:
+            if cur_lev > starting:
                 try:
-                    cur_max = np.max(values_ofn[:, cur_lev-2])
-                    max_idx = np.argmax(values_ofn[:, cur_lev-2])
+                    cur_max = np.max(values_ofn[:, cur_lev-(starting+1)])
+                    max_idx = np.argmax(values_ofn[:, cur_lev-(starting+1)])
                 except:
                     pdb.set_trace()
 
                 if ofn.f < cur_max:
-                    indices_ofn[max_idx, cur_lev-2] = idx
-                    values_ofn[max_idx, cur_lev-2] = ofn.f
+                    indices_ofn[max_idx, cur_lev-(starting+1)] = idx
+                    values_ofn[max_idx, cur_lev-(starting+1)] = ofn.f
             else:
                 keep_b.append(idx)
 
@@ -962,12 +960,10 @@ def search(start_node, end_node, best_ub, beam_search=False, beam_k=None):
     # Initialize both open and closed list for forward and backward directions
     open_list_f = []
     closed_list_f = []
-    closed_list_f_g = []
     open_list_f.append(start_node)
 
     open_list_b = []
     closed_list_b = []
-    closed_list_b_g =[]
     open_list_b.append(end_node)
 
     num_tap_solved = 0
@@ -990,9 +986,6 @@ def search(start_node, end_node, best_ub, beam_search=False, beam_k=None):
             else:
                 search_direction = 'Forward'
 
-        # print('search_direction: ', search_direction)
-        # print('f length {} b length {}'.format(len(open_list_f), len(open_list_b)))
-
         if search_direction == 'Forward':
             open_list_f, closed_list_f, best_ub, best_feasible_soln, num_tap_solved, level_f, tot_child, uncommon_number, common_number = expand_forward(
                 start_node, end_node, open_list_b, open_list_f, closed_list_b, closed_list_f, best_ub, best_feasible_soln, num_tap_solved, max_level_b, front_to_end=False, uncommon_number=uncommon_number, tot_child=tot_child, common_number=common_number)
@@ -1002,10 +995,6 @@ def search(start_node, end_node, best_ub, beam_search=False, beam_k=None):
             open_list_b, closed_list_b, best_ub, best_feasible_soln, num_tap_solved, level_b, tot_child, uncommon_number, common_number = expand_backward(
                 start_node, end_node, open_list_b, open_list_f, closed_list_b, closed_list_f, best_ub, best_feasible_soln, num_tap_solved, max_level_f, front_to_end=False, uncommon_number=uncommon_number, tot_child=tot_child, common_number=common_number)
             max_level_b = min(max_level_b, level_b)
-
-        # if iter_count % 100 == 0:
-        #     print('length of forward open list: ', len(open_list_f))
-        #     print('length of backwards open list: ', len(open_list_b))
 
         # check termination
         if len(open_list_b) > 0:
@@ -1029,30 +1018,25 @@ def search(start_node, end_node, best_ub, beam_search=False, beam_k=None):
             return best_feasible_soln.path, best_feasible_soln.g, num_tap_solved, tot_child, uncommon_number, common_number, num_purged
 
 
-        if iter_count % 10 == 0:
-            print('iter count = ', iter_count)
-            print('before purge')
-            print('length of forward open list: ', len(open_list_f))
-            print('length of backwards open list: ', len(open_list_b))
+        if iter_count % 25 == 0:
+
             if beam_search:
                 open_list_b, open_list_f, closed_list_b, closed_list_f, num_purged = purge(
                     open_list_b, open_list_f, closed_list_b, closed_list_f,
                     max_level_f, max_level_b, beam_k, num_purged)
-            print('after purge')
-            print('length of forward open list: ', len(open_list_f))
-            print('length of backward open list: ', len(open_list_b))
 
 
-        if iter_count % 25 == 0:
 
-            if kf < kb:
-                uncommon_number, common_number = set_bounds_bif(minfnode, open_list_b, end_node, front_to_end=True, best_feasible_soln=best_feasible_soln, uncommon_number=uncommon_number, common_number=common_number, get_feas=True)
-            else:
-                uncommon_number, common_number = set_bounds_bib(minbnode, open_list_f, start_node, front_to_end=True, best_feasible_soln=best_feasible_soln, uncommon_number=uncommon_number, common_number=common_number, get_feas=True)
-
-        if best_feasible_soln.g < best_ub:
-           best_ub = best_feasible_soln.g
-           print('new_best:', best_ub)
+        # if iter_count % 25 == 0:
+        #
+        #     if kf < kb:
+        #         uncommon_number, common_number = set_bounds_bif(minfnode, open_list_b, end_node, front_to_end=True, best_feasible_soln=best_feasible_soln, uncommon_number=uncommon_number, common_number=common_number, get_feas=True)
+        #     else:
+        #         uncommon_number, common_number = set_bounds_bib(minbnode, open_list_f, start_node, front_to_end=True, best_feasible_soln=best_feasible_soln, uncommon_number=uncommon_number, common_number=common_number, get_feas=True)
+        # #
+        # if best_feasible_soln.g < best_ub:
+        #    best_ub = best_feasible_soln.g
+        #    print('new_best:', best_ub)
 
         bar.update(iter_count)
     if best_feasible_soln.path is None:
@@ -1788,6 +1772,7 @@ if __name__ == '__main__':
                             algo_num_tap = load(fname + '_num_tap')
                             algo_elapsed = load(fname + '_elapsed')
 
+                        print('---------------FULLOBJ')
                         print('full obj: ', algo_obj)
 
                     if beam_search:
