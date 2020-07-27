@@ -862,7 +862,7 @@ def expand_backward(start_node, end_node, open_list_b, open_list_f, closed_list_
     return open_list_b, closed_list_b, best_ub, best_feasible_soln, num_tap_solved, current_level, tot_child, uncommon_number, common_number
 
 def purge(open_list_b, open_list_f, closed_list_b, closed_list_f, max_level_f, max_level_b, beam_k, num_purged):
-    starting = int(len(damaged_dict)/2)
+    starting = int(len(damaged_dict)/4)
     keep_f =[]
     not_kept = []
     if max_level_f > starting:
@@ -935,7 +935,7 @@ def purge(open_list_b, open_list_f, closed_list_b, closed_list_f, max_level_f, m
     return open_list_b, open_list_f, closed_list_b, closed_list_f, num_purged
 
 
-def search(start_node, end_node, best_ub, beam_search=False, beam_k=None):
+def search(start_node, end_node, best_ub, greedy_soln, beam_search=False, beam_k=None):
     """Returns the best order to visit the set of nodes"""
 
     # ideas in Holte: (search that meets in the middle)
@@ -952,8 +952,8 @@ def search(start_node, end_node, best_ub, beam_search=False, beam_k=None):
 
     # solution comes from the greedy heuristic
     best_feasible_soln = Node()
-    best_feasible_soln.g = np.inf
-    best_feasible_soln.path = None
+    best_feasible_soln.g = best_ub
+    best_feasible_soln.path = greedy_soln
 
     damaged_links = damaged_dict.keys()
 
@@ -1017,14 +1017,14 @@ def search(start_node, end_node, best_ub, beam_search=False, beam_k=None):
         if (len(open_list_f) == 0 or len(open_list_b) == 0) and best_feasible_soln.path is not None:
             return best_feasible_soln.path, best_feasible_soln.g, num_tap_solved, tot_child, uncommon_number, common_number, num_purged
 
+        if max_level_b > int(len(damaged_dict)/4) or max_level_f > int(len(damaged_dict)/4):
+            if iter_count % 4 == 0:
 
-        if iter_count % 25 == 0:
-
-            if beam_search:
-                open_list_b, open_list_f, closed_list_b, closed_list_f, num_purged = purge(
-                    open_list_b, open_list_f, closed_list_b, closed_list_f,
-                    max_level_f, max_level_b, beam_k, num_purged)
-
+                if beam_search:
+                    open_list_b, open_list_f, closed_list_b, closed_list_f, num_purged = purge(
+                        open_list_b, open_list_f, closed_list_b, closed_list_f,
+                        max_level_f, max_level_b, beam_k, num_purged)
+        #
 
 
         # if iter_count % 25 == 0:
@@ -1745,7 +1745,7 @@ if __name__ == '__main__':
                         if not os.path.exists(fname + extension):
                             search_start = time.time()
                             algo_path, algo_obj, search_tap_solved, tot_child, uncommon_number, common_number, _ = search(
-                                start_node, end_node, best_ub)
+                                start_node, end_node, best_ub, greedy_soln)
                             search_elapsed = time.time() - search_start + greedy_elapsed
 
                             net_after, after_eq_tstt = state_after(damaged_links, save_dir, real=True)
@@ -1800,7 +1800,7 @@ if __name__ == '__main__':
                             if not os.path.exists(fname + extension):
                                 search_start = time.time()
                                 beamsearch_path, beamsearch_obj, beamsearch_tap_solved, tot_childbs, uncommon_numberbs, common_numberbs, num_purgebs = search(
-                                    start_node, end_node, best_bound, beam_search=beam_search, beam_k=k)
+                                    start_node, end_node, best_bound, greedy_soln, beam_search=beam_search, beam_k=k)
                                 search_elapsed = time.time() - search_start + greedy_elapsed
 
                                 net_after, after_eq_tstt = state_after(damaged_links, save_dir, real=True)
@@ -1851,7 +1851,7 @@ if __name__ == '__main__':
                             if not os.path.exists(fname + extension):
                                 search_start = time.time()
                                 r_algo_path, r_algo_obj, r_search_tap_solved, tot_childr, uncommon_numberr, common_numberr, num_purger = search(
-                                    start_node, end_node, best_bound, beam_search=beam_search, beam_k=k)
+                                    start_node, end_node, best_bound, greedy_soln, beam_search=beam_search, beam_k=k)
                                 search_elapsed = time.time() - search_start + greedy_elapsed
 
                                 net_after, after_eq_tstt = state_after(damaged_links, save_dir, real=True)

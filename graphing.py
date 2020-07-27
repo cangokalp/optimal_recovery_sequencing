@@ -172,8 +172,7 @@ def result_table(reps, file_path, broken, ks):
                     print(method_dict)
                     if key == '_num_tap':
                         method_dict[key].append((int(broken) + 1) * int(broken) / 2)
-
-    sample_size = reps
+    sample_size = reps + 1
 
     obj_means = []
     tap_means = []
@@ -187,10 +186,15 @@ def result_table(reps, file_path, broken, ks):
     numtapmax = []
     elapsedmax = []
 
-    optimal = np.minimum(np.array(r_heuristic32['_obj']), np.minimum(np.array(r_heuristic2['_obj']), np.minimum(
-        np.minimum(np.array(heuristic2['_obj']), np.array(heuristic32['_obj'])), np.array(greedy['_obj']))))
+    if int(broken) <= 6:
+        optimal = []
+        for rep in range(reps + 1):
+             optimal.append(load(os.path.join(file_path, str(rep)) + '/' + 'min_seq_obj'))
+
+    else:
+        optimal = np.minimum(np.array(r_heuristic32['_obj']), np.minimum(np.array(r_heuristic2['_obj']), np.minimum(
+            np.minimum(np.array(heuristic2['_obj']), np.array(heuristic32['_obj'])), np.array(greedy['_obj']))))
     data = np.zeros((len(dict_list), 6))
-    pdb.set_trace()
     r = 0
 
     for method_dict in dict_list:
@@ -230,10 +234,11 @@ def result_table(reps, file_path, broken, ks):
     elapsed_means_scaled = elapsed_means / max(elapsed_means)
     elapsed_err_scaled = elapsed_err / max(elapsed_means)
 
-    maxdiff = np.max(np.array(greedy['_obj']) - optimal)
-    argmaxdiff = np.argmax(np.array(greedy['_obj']) - optimal)
 
-    percgap = maxdiff / optimal[argmaxdiff] * 100
+    maxdiff = np.max((np.array(greedy['_obj']) - optimal)/optimal*100)
+    argmaxdiff = np.argmax((np.array(greedy['_obj']) - optimal)/optimal*100)
+
+    percgap = maxdiff #/ optimal[argmaxdiff] * 100
 
     which = np.argmin([np.array(heuristic2['_obj'])[argmaxdiff], np.array(heuristic32['_obj'])[argmaxdiff]])
     percgapmax.append(0)
@@ -273,27 +278,27 @@ def result_table(reps, file_path, broken, ks):
     # tap_means_scaled[i]/2
     for i in range(2):
         plt.annotate('{0:1.1f}'.format(percgapmax[i]) + '%', (i, 0), textcoords='offset points', xytext=(
-            0, 20), ha='center', va='bottom', rotation=70, size=8)
+            0, 20), ha='center', va='bottom', rotation=70, size=10)
         plt.annotate('{0:1.1f}'.format(numtapmax[i]), (i + barWidth, 0), textcoords='offset points', xytext=(
-            0, 20), ha='center', va='bottom', rotation=70, size='smaller')
+            0, 20), ha='center', va='bottom', rotation=70, size=10)
         plt.annotate('{0:1.1f}'.format(elapsedmax[i]), (i + 2 * barWidth, 0), textcoords='offset points', xytext=(
-            0, 20), ha='center', va='bottom', rotation=70, size='smaller')
+            0, 20), ha='center', va='bottom', rotation=70, size=10)
 
-    plt.ylabel('Normalized Metric Value')
+    plt.ylabel('Normalized Metric Value', size=10)
     if which == 0:
-        plt.xticks([(r + barWidth) for r in range(len(obj_means))],
-                   ['M2', 'GM'])
+        plt.xticks([(r + barWidth) for r in range(len(elapsedmax))],
+                   ['M2', 'GM'], size=10)
     else:
-        plt.xticks([(r + barWidth) for r in range(len(obj_means))],
-                   ['M' + bs_param_2, 'GM'])
+        plt.xticks([(r + barWidth) for r in range(len(elapsedmax))],
+                   ['M' + bs_param_2, 'GM'], size=10)
     # plt.title('Performance Comparison - ' + broken, fontsize=7)
 
     txt = "# Broken Links: " + \
           str(broken) + ".\n worst within: " + \
           str(reps + 1) + ' different instances.'
 
-    plt.figtext(0.5, 0.01, txt, wrap=True,
-                ha='center', va="bottom", fontsize=7)
+    # plt.figtext(0.5, 0.01, txt, wrap=True,
+    #             ha='center', va="bottom", fontsize=7)
     plt.legend(fontsize=8)
     save_fig(file_path, 'worst gap possible' +
              'w_bridge_' + str(broken), tight_layout=False)
@@ -328,15 +333,15 @@ def result_table(reps, file_path, broken, ks):
     # tap_means_scaled[i]/2
     for i in range(len(dict_list)):
         plt.annotate('{0:1.1f}'.format(obj_means[i]) + '%', (i, 0), textcoords='offset points', xytext=(
-            0, 20), ha='center', va='bottom', rotation=70, size=8)
+            0, 20), ha='center', va='bottom', rotation=70, size=10)
         plt.annotate('{0:1.1f}'.format(tap_means[i]), (i + barWidth, 0), textcoords='offset points', xytext=(
-            0, 20), ha='center', va='bottom', rotation=70, size='smaller')
+            0, 20), ha='center', va='bottom', rotation=70, size=10)
         plt.annotate('{0:1.1f}'.format(elapsed_means[i]), (i + 2 * barWidth, 0), textcoords='offset points', xytext=(
-            0, 20), ha='center', va='bottom', rotation=70, size='smaller')
+            0, 20), ha='center', va='bottom', rotation=70, size=10)
 
-    plt.ylabel('Normalized Metric Value')
+    plt.ylabel('Normalized Metric Value', size=10)
     plt.xticks([(r + barWidth) for r in range(len(obj_means))],
-               ['M2', 'RM2', 'M' + bs_param_2, 'RM' + bs_param_2, 'GM', 'IF'])
+               ['M2', 'RM2', 'M' + bs_param_2, 'RM' + bs_param_2, 'GM', 'IF'], size=10)
     # plt.title('Performance Comparison - ' + broken, fontsize=7)
     if broken != 10:
         txt = "# Broken Links: " + \
@@ -345,8 +350,8 @@ def result_table(reps, file_path, broken, ks):
     else:
         txt = "# Broken Links: " + str(broken) + ".\n Averaged over: " + str(
             reps + 1) + ' different instances.\n Heuristic solution was taken as best - since not possible to solve to optimality'
-    plt.figtext(0.5, 0.01, txt, wrap=True,
-                ha='center', va="bottom", fontsize=7)
+    # plt.figtext(0.5, 0.01, '', wrap=True,
+    #             ha='center', va="bottom", fontsize=9)
     plt.legend(fontsize=8)
     save_fig(file_path, 'performance_graph_' +
              'w_bridge_' + str(broken), tight_layout=False)
@@ -474,9 +479,10 @@ def get_tables(directory):
         brokens = get_folders(SCENARIO_DIR)
     except:
         return
-
-    ks = [2, 4, 8, 16, 32]
+    ks = [2,16,32]
     for broken in brokens:
+        if broken == '32':
+            continue
         try:
             B_DIR = os.path.join(SCENARIO_DIR, broken)
         except:
