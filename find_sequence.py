@@ -161,9 +161,8 @@ def get_successors_b(node):
     not_visited = node.not_visited
     successors = []
 
-    # if node.path == ['(13,12)']:
-    #     pdb.set_trace()
-    if node.level != len(damaged_dict.keys()):
+
+    if node.level != 0:
         tail = node.path[-1]
         for a_link in not_visited:
 
@@ -570,11 +569,10 @@ def expand_forward(start_node, end_node, open_list_b, open_list_f, closed_list_b
     open_list_f.pop(current_index)
     closed_list_f.append(current_node)
 
-    if len(damaged_dict) - max_level_b + len(current_node.visited) + 1 >= len(damaged_dict):
+    if max_level_b + len(current_node.visited) + 1 >= len(damaged_dict):
 
         cur_visited = current_node.visited
         for other_end in open_list_b:
-        # for other_end in open_list_b:
 
             if len(set(other_end.visited).intersection(set(cur_visited))) == 0 and len(damaged_dict) - len(set(other_end.visited).union(set(cur_visited))) == 1:
                 lo_link = set(damaged_dict.keys()).difference(
@@ -654,21 +652,13 @@ def expand_forward(start_node, end_node, open_list_b, open_list_f, closed_list_b
 
         if child.lb == child.ub:
             continue
-            # pdb.set_trace()
 
-            #     and len(child.path) != len(child.damaged_dict):
-            #
-            # lo_link = set(damaged_dict.keys()).difference(set(child.visited))
-            # lo_link = lo_link.pop()
-            # best_path = child.path + [str(lo_link)]
 
         if child.lb > child.ub:
             pdb.set_trace()
 
         # Create the f, g, and h values
         child.g = child.realized
-        # child.h = child.lb - child.g
-        # child.f = child.g + child.h
         child.f = child.lb
 
         if child.f > best_feasible_soln.g or child.f > best_ub:
@@ -727,7 +717,6 @@ def expand_backward(start_node, end_node, open_list_b, open_list_f, closed_list_
     if max_level_f + len(current_node.visited) + 1 >= len(damaged_dict):
         cur_visited = current_node.visited
         for other_end in open_list_f:
-        # for other_end in open_list_f:
 
             if len(set(other_end.visited).intersection(set(cur_visited))) == 0 and len(damaged_dict) - len(set(other_end.visited).union(set(cur_visited))) == 1:
                 lo_link = set(damaged_dict.keys()).difference(
@@ -780,7 +769,7 @@ def expand_backward(start_node, end_node, open_list_b, open_list_f, closed_list_
     for a_link in eligible_expansions:
 
         # Create new node
-        current_level = current_node.level - 1
+        current_level = current_node.level + 1
         new_node, solved = expand_sequence_b(
             current_node, a_link, level=current_level)
         num_tap_solved += solved
@@ -809,14 +798,7 @@ def expand_backward(start_node, end_node, open_list_b, open_list_f, closed_list_
         if child.lb == child.ub:
             # pdb.set_trace()
             continue
-            # pdb.set_trace()
-            # and len(child.path) != len(child.damaged_dict):
-            # lo_link = set(damaged_dict.keys()).difference(set(child.visited))
-            # lo_link = lo_link.pop()
-            # best_path = [str(lo_link)] + child.path[::-1]
-            # if len(best_path)!=len(child.damaged_dict):
-            #     pdb.set_trace()
-            #
+
 
         if child.lb > child.ub:
             pdb.set_trace()
@@ -848,11 +830,6 @@ def expand_backward(start_node, end_node, open_list_b, open_list_f, closed_list_
                     if child.g > closed_node.g:
                         add = False
                         break
-            # for idx, closed_node_fixed in enumerate(closed_list_b):
-            #     if child.fixed == closed_node_fixed:
-            #         if child.g > closed_list_b_g[idx]:
-            #             add = False
-            #             break
 
         # Add the child to the open list
         if add:
@@ -899,7 +876,6 @@ def purge(open_list_b, open_list_f, closed_list_b, closed_list_f, max_level_f, m
 
     keep_b =[]
     not_kept = []
-    max_level_b = len(damaged_dict) - max_level_b
 
     if max_level_b > starting:
         values_ofn = np.ones((beam_k, max_level_b - 1)) * np.inf
@@ -907,7 +883,7 @@ def purge(open_list_b, open_list_f, closed_list_b, closed_list_f, max_level_f, m
 
         for idx, ofn in enumerate(open_list_b):
 
-            cur_lev = len(damaged_dict) - ofn.level
+            cur_lev = ofn.level
             if cur_lev > starting:
                 try:
                     cur_max = np.max(values_ofn[:, cur_lev-(starting+1)])
@@ -995,7 +971,7 @@ def search(start_node, end_node, best_ub, greedy_soln, beam_search=False, beam_k
         else:
             open_list_b, closed_list_b, best_ub, best_feasible_soln, num_tap_solved, level_b, tot_child, uncommon_number, common_number = expand_backward(
                 start_node, end_node, open_list_b, open_list_f, closed_list_b, closed_list_f, best_ub, best_feasible_soln, num_tap_solved, max_level_f, front_to_end=False, uncommon_number=uncommon_number, tot_child=tot_child, common_number=common_number)
-            max_level_b = min(max_level_b, level_b)
+            max_level_b = max(max_level_b, level_b)
 
         # check termination
         if len(open_list_b) > 0:
@@ -1557,7 +1533,7 @@ def get_wb(damaged_links, save_dir, approx, relax=False, bsearch=False, ext_name
     end_node = Node(tstt_before=before_eq_tstt, forward=False)
     end_node.before_eq_tstt = before_eq_tstt
     end_node.after_eq_tstt = after_eq_tstt
-    end_node.level = len(damaged_links)
+    end_node.level = 0
     
     end_node.visited, end_node.not_visited = set([]), set(damaged_links)
     
@@ -1600,12 +1576,13 @@ if __name__ == '__main__':
     os.makedirs(NETWORK_DIR, exist_ok=True)
 
     if graphing:
-        get_common_numbers()
-        # get_tables(NETWORK_DIR)
+        # get_common_numbers()
+        get_tables(NETWORK_DIR)
     else:
         if rand_gen:
 
-            for rep in range(reps):
+            for rep in range(5, reps+5):
+
                 memory = {}
 
                 net = create_network(NETFILE, TRIPFILE)
@@ -1694,6 +1671,7 @@ if __name__ == '__main__':
                         i += 1
                         damaged_links.append(ij)
                         prev_dG = deepcopy(dG)
+                        decoy.remove(ij)
 
                 del netg
                 del dG

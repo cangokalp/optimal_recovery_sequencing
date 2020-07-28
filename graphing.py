@@ -241,9 +241,20 @@ def get_common_numbers():
 def result_table(reps, file_path, broken, ks):
     bs_param_2 = str(int(int(broken) / 2.0))
 
-    filenames = ['beamsearch_solution_k2', 'r_algo_solution_k2', 'beamsearch_solution_k' + bs_param_2,
-                 'r_algo_solution_k' + bs_param_2,
+    fullinc = True
+    try:
+        load(os.path.join(file_path, str(0)) + '/' + 'algo_solution' + '_obj')
+    except:
+        fullinc = False
+
+
+
+    filenames = ['beamsearch_solution_k' + bs_param_2,
+                 'r_algo_solution_k' + bs_param_2,'beamsearch_solution_k2', 'r_algo_solution_k2',
                  'greedy_solution', 'importance_factor_bound']
+
+    if fullinc:
+        filenames.insert(0,'algo_solution')
 
     heuristic2 = {}
     r_heuristic2 = {}
@@ -251,8 +262,12 @@ def result_table(reps, file_path, broken, ks):
     r_heuristic32 = {}
     greedy = {}
     importance_factor = {}
+    algo = {}
 
-    dict_list = [heuristic2, r_heuristic2, heuristic32, r_heuristic32, greedy, importance_factor]
+    dict_list = [heuristic32, r_heuristic32, heuristic2, r_heuristic2, greedy, importance_factor]
+    if fullinc:
+        dict_list.insert(0,algo)
+
     key_list = ['_obj', '_num_tap', '_elapsed']
     key_list2 = ['_common', '_uncommon']
 
@@ -294,9 +309,15 @@ def result_table(reps, file_path, broken, ks):
         for rep in range(reps + 1):
              optimal.append(load(os.path.join(file_path, str(rep)) + '/' + 'min_seq_obj'))
 
+
+
     else:
         optimal = np.minimum(np.array(r_heuristic32['_obj']), np.minimum(np.array(r_heuristic2['_obj']), np.minimum(
             np.minimum(np.array(heuristic2['_obj']), np.array(heuristic32['_obj'])), np.array(greedy['_obj']))))
+
+    if fullinc:
+        optimal = np.minimum(optimal, np.array(algo['_obj']))
+
     data = np.zeros((len(dict_list), 6))
     r = 0
 
@@ -304,9 +325,6 @@ def result_table(reps, file_path, broken, ks):
         objs = np.array(method_dict['_obj'])
         objs = ((objs - optimal) / optimal) * 100
         objs = np.maximum(0, objs)
-
-
-
 
         mean, error = mean_std_lists(objs, sample_size)
         obj_means.append(mean)
@@ -344,20 +362,28 @@ def result_table(reps, file_path, broken, ks):
 
     maxdiff = np.max((np.array(greedy['_obj']) - optimal)/optimal*100)
     argmaxdiff = np.argmax((np.array(greedy['_obj']) - optimal)/optimal*100)
-    pdb.set_trace()
-    ddict = load(os.path.join(file_path, str(1)) + '/' + 'damaged_dict')
+
+    # ddict = load(os.path.join(file_path, str(1)) + '/' + 'damaged_dict')
 
     percgap = maxdiff #/ optimal[argmaxdiff] * 100
 
-    which = np.argmin([np.array(heuristic2['_obj'])[argmaxdiff], np.array(heuristic32['_obj'])[argmaxdiff]])
-    percgapmax.append(0)
+    # pdb.set_trace()
+    # which = np.argmin([np.array(heuristic2['_obj'])[argmaxdiff], np.array(heuristic32['_obj'])[argmaxdiff], np.array(algo['_obj'])[argmaxdiff]])
+    # percgapmax.append(0)
 
-    if which == 0:
-        numtapmax.append(np.array(heuristic2['_num_tap'])[argmaxdiff])
-        elapsedmax.append(np.array(heuristic2['_elapsed'])[argmaxdiff])
-    else:
-        numtapmax.append(np.array(heuristic32['_num_tap'])[argmaxdiff])
-        elapsedmax.append(np.array(heuristic32['_elapsed'])[argmaxdiff])
+
+    if fullinc:
+        percgapmax.append(np.max((np.array(algo['_obj'])[argmaxdiff] - optimal[argmaxdiff])/optimal[argmaxdiff]*100))
+        numtapmax.append(np.array(algo['_num_tap'])[argmaxdiff])
+        elapsedmax.append(np.array(algo['_elapsed'])[argmaxdiff])
+
+    percgapmax.append(np.max((np.array(heuristic32['_obj'])[argmaxdiff] - optimal[argmaxdiff]) / optimal[argmaxdiff] * 100))
+    numtapmax.append(np.array(heuristic32['_num_tap'])[argmaxdiff])
+    elapsedmax.append(np.array(heuristic32['_elapsed'])[argmaxdiff])
+
+    percgapmax.append(np.max((np.array(heuristic2['_obj'])[argmaxdiff] - optimal[argmaxdiff]) / optimal[argmaxdiff] * 100))
+    numtapmax.append(np.array(heuristic2['_num_tap'])[argmaxdiff])
+    elapsedmax.append(np.array(heuristic2['_elapsed'])[argmaxdiff])
 
     percgapmax.append(percgap)
     numtapmax.append(np.array(greedy['_num_tap'])[argmaxdiff])
@@ -376,16 +402,16 @@ def result_table(reps, file_path, broken, ks):
 
     plt.rcParams["font.size"] = 8
     # hatch='///', hatch='\\\\\\', hatch='xxx'
-    if len(percgapmax) <= 2:
-        plt.bar(r_obj, percgapmax_scaled, width=barWidth, edgecolor='#087efe', color='#087efe',
-                ecolor='#c6ccce', alpha=0.8, capsize=5, label='Rel Gap')
-        plt.bar(r_tap, numtapmax_scaled, width=barWidth, edgecolor='#b7fe00', color='#b7fe00',
-                ecolor='#c6ccce', alpha=0.8, capsize=5, label='Tap Solved')
-        plt.bar(r_elapsed, elapsedmax_scaled, width=barWidth, edgecolor='#ff9700', color='#ff9700',
-                ecolor='#c6ccce', alpha=0.8, capsize=5, label='Time Elapsed (s)')
+
+    plt.bar(r_obj, percgapmax_scaled, width=barWidth, edgecolor='#087efe', color='#087efe',
+            ecolor='#c6ccce', alpha=0.8, capsize=5, label='Rel Gap')
+    plt.bar(r_tap, numtapmax_scaled, width=barWidth, edgecolor='#b7fe00', color='#b7fe00',
+            ecolor='#c6ccce', alpha=0.8, capsize=5, label='Tap Solved')
+    plt.bar(r_elapsed, elapsedmax_scaled, width=barWidth, edgecolor='#ff9700', color='#ff9700',
+            ecolor='#c6ccce', alpha=0.8, capsize=5, label='Time Elapsed (s)')
 
     # tap_means_scaled[i]/2
-    for i in range(2):
+    for i in range(len(percgapmax)):
         plt.annotate('{0:1.1f}'.format(percgapmax[i]) + '%', (i, 0), textcoords='offset points', xytext=(
             0, 20), ha='center', va='bottom', rotation=70, size=10)
         plt.annotate('{0:1.1f}'.format(numtapmax[i]), (i + barWidth, 0), textcoords='offset points', xytext=(
@@ -394,12 +420,16 @@ def result_table(reps, file_path, broken, ks):
             0, 20), ha='center', va='bottom', rotation=70, size=10)
 
     plt.ylabel('Normalized Metric Value', size=10)
-    if which == 0:
-        plt.xticks([(r + barWidth) for r in range(len(elapsedmax))],
-                   ['M2', 'GM'], size=10)
+
+    if fullinc:
+        xticks_str = ['MF', 'M' + bs_param_2, 'M2', 'GM']
     else:
-        plt.xticks([(r + barWidth) for r in range(len(elapsedmax))],
-                   ['M' + bs_param_2, 'GM'], size=10)
+        xticks_str = ['M' + bs_param_2, 'M2', 'GM']
+
+
+
+    plt.xticks([(r + barWidth) for r in range(len(elapsedmax))],
+                   xticks_str, size=10)
     # plt.title('Performance Comparison - ' + broken, fontsize=7)
 
     txt = "# Broken Links: " + \
@@ -449,8 +479,15 @@ def result_table(reps, file_path, broken, ks):
             0, 20), ha='center', va='bottom', rotation=70, size=10)
 
     plt.ylabel('Normalized Metric Value', size=10)
+    if fullinc:
+        xticks_str = ['MF', 'M' + bs_param_2, 'RM' + bs_param_2, 'M2', 'RM2', 'GM', 'IF']
+    else:
+        xticks_str = ['M' + bs_param_2, 'RM' + bs_param_2, 'M2', 'RM2', 'GM', 'IF']
+
     plt.xticks([(r + barWidth) for r in range(len(obj_means))],
-               ['M2', 'RM2', 'M' + bs_param_2, 'RM' + bs_param_2, 'GM', 'IF'], size=10)
+               xticks_str, size=10)
+
+
     # plt.title('Performance Comparison - ' + broken, fontsize=7)
     if broken != 10:
         txt = "# Broken Links: " + \
@@ -591,7 +628,7 @@ def get_tables(directory):
         return
     ks = [2,16,32]
     for broken in brokens:
-        if broken == '32':
+        if broken != '8':
             continue
 
         try:
