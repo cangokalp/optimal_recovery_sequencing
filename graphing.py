@@ -136,10 +136,106 @@ def mean_std_lists(metric_values, sample_size):
     return mean, error
 
 
-def prep_dictionaries(method_dict):
-    method_dict['_obj'] = []
-    method_dict['_num_tap'] = []
-    method_dict['_elapsed'] = []
+def prep_dictionaries(method_dict, key_list):
+    for i in range(len(key_list)):
+        method_dict[key_list[i]] = []
+
+def get_common_numbers():
+
+    netdirs = []
+    FOLDER = 'TransportationNetworks'
+    for net_name in ['SiouxFalls', 'Chicago-Sketch']:
+        NETWORK = os.path.join(FOLDER, net_name)
+        JSONFILE = os.path.join(NETWORK, net_name.lower() + '.geojson')
+        NETFILE = os.path.join(NETWORK, net_name + "_net.tntp")
+        TRIPFILE = os.path.join(NETWORK, net_name + "_trips.tntp")
+
+        SAVED_FOLDER_NAME = "saved"
+        PROJECT_ROOT_DIR = "."
+        SAVED_DIR = os.path.join(PROJECT_ROOT_DIR, SAVED_FOLDER_NAME)
+        os.makedirs(SAVED_DIR, exist_ok=True)
+
+        NETWORK_DIR = os.path.join(SAVED_DIR, NETWORK)
+        netdirs.append(NETWORK_DIR)
+
+    plt.figure(figsize=(16, 8))
+    i = 0
+    reps=4
+    for netdir in netdirs:
+
+        brokens = ['8','16']
+        for broken in brokens:
+            figure_grid = 220
+            i += 1
+            file_path = os.path.join(netdir, broken)
+            plt.subplot(figure_grid + i)
+
+            bs_param_2 = str(int(int(broken) / 2.0))
+
+            filenames = ['beamsearch_solution_k' + bs_param_2]
+
+            heuristic32 = {}
+
+            dict_list = [heuristic32]
+            key_list = ['_common', '_uncommon']
+
+            for method_dict in dict_list:
+                prep_dictionaries(method_dict, key_list)
+
+            for rep in range(reps + 1):
+                for method_dict in dict_list:
+                    for key in key_list:
+                        method_dict[key].append(load(os.path.join(file_path, str(rep)) + '/' + filenames[
+                                                dict_list.index(method_dict)] + key))
+
+            sample_size = reps + 1
+
+            common_means = []
+            uncommon_means = []
+
+            for method_dict in dict_list:
+                cn = np.array(method_dict['_common'])
+                un = np.array(method_dict['_uncommon'])
+
+                common_means.append(cn)
+                uncommon_means.append(un)
+
+            cm = np.mean(common_means)
+            um = np.mean(uncommon_means)
+
+
+            tot = cm + um
+            cm_perc = cm/tot
+            um_perc = um/tot
+
+            barWidth = 0.1
+
+            plt.rcParams["font.size"] = 8
+            # hatch='///', hatch='\\\\\\', hatch='xxx'
+            plt.bar(0, cm_perc, width=barWidth, edgecolor='#087efe', color='#087efe',
+                    ecolor='#c6ccce', alpha=0.8, capsize=5, label='Case 1', align='center')
+            plt.bar(0.1, um_perc, width=barWidth, edgecolor='#b7fe00', color='#b7fe00',
+                    ecolor='#c6ccce', alpha=0.8, capsize=5, label='Case 2', align='center')
+
+            plt.annotate('{:1.3f}'.format(cm_perc) + '%', (0, 0), textcoords='offset points', xytext=(
+                0, 20), ha='center', va='bottom', rotation=70, size=10)
+            plt.annotate('{:1.3f}'.format(um_perc) + '%', (0 + barWidth, 0), textcoords='offset points', xytext=(
+                0, 20), ha='center', va='bottom', rotation=70, size=10)
+
+            plt.ylabel('Percentage', size=10)
+            if netdir.find('SiouxFalls') >= 0:
+                plt.xlabel('SiouxFalls - ' + broken, fontsize=12)
+            else:
+                plt.xlabel('Chicago-Sketch - ' + broken, fontsize=12)
+            plt.tick_params(
+                axis='x',  # changes apply to the x-axis
+                which='both',  # both major and minor ticks are affected
+                bottom=False,  # ticks along the bottom edge are off
+                top=False,  # ticks along the top edge are off
+                labelbottom=False)
+            plt.legend(fontsize=8)
+    save_fig(FOLDER, 'common_uncommon', tight_layout=False)
+
 
 
 def result_table(reps, file_path, broken, ks):
@@ -158,13 +254,17 @@ def result_table(reps, file_path, broken, ks):
 
     dict_list = [heuristic2, r_heuristic2, heuristic32, r_heuristic32, greedy, importance_factor]
     key_list = ['_obj', '_num_tap', '_elapsed']
+    key_list2 = ['_common', '_uncommon']
+
+
 
     for method_dict in dict_list:
-        prep_dictionaries(method_dict)
+        prep_dictionaries(method_dict, key_list)
+        prep_dictionaries(method_dict, key_list2)
 
     for rep in range(reps + 1):
         for method_dict in dict_list:
-            for key in key_list:
+            for key in key_list + key_list2:
                 try:
                     method_dict[key].append(
                         load(os.path.join(file_path, str(rep)) + '/' + filenames[dict_list.index(method_dict)] + key))
@@ -172,11 +272,14 @@ def result_table(reps, file_path, broken, ks):
                     print(method_dict)
                     if key == '_num_tap':
                         method_dict[key].append((int(broken) + 1) * int(broken) / 2)
+
+
     sample_size = reps + 1
 
     obj_means = []
     tap_means = []
     elapsed_means = []
+
 
     obj_err = []
     tap_err = []
@@ -202,11 +305,15 @@ def result_table(reps, file_path, broken, ks):
         objs = ((objs - optimal) / optimal) * 100
         objs = np.maximum(0, objs)
 
+
+
+
         mean, error = mean_std_lists(objs, sample_size)
         obj_means.append(mean)
         obj_err.append(error)
         data[r, 0] = mean
         data[r, 1] = error
+
 
         taps = method_dict['_num_tap']
 
@@ -237,6 +344,8 @@ def result_table(reps, file_path, broken, ks):
 
     maxdiff = np.max((np.array(greedy['_obj']) - optimal)/optimal*100)
     argmaxdiff = np.argmax((np.array(greedy['_obj']) - optimal)/optimal*100)
+    pdb.set_trace()
+    ddict = load(os.path.join(file_path, str(1)) + '/' + 'damaged_dict')
 
     percgap = maxdiff #/ optimal[argmaxdiff] * 100
 
@@ -472,6 +581,7 @@ def get_folders(path):
     return folders
 
 
+
 def get_tables(directory):
     SCENARIO_DIR = directory
 
@@ -483,6 +593,7 @@ def get_tables(directory):
     for broken in brokens:
         if broken == '32':
             continue
+
         try:
             B_DIR = os.path.join(SCENARIO_DIR, broken)
         except:

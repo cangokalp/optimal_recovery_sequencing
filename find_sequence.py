@@ -20,6 +20,7 @@ import time
 from scipy import stats
 from correspondence import *
 import progressbar
+from network import *
 
 extension = '.pickle'
 
@@ -572,7 +573,7 @@ def expand_forward(start_node, end_node, open_list_b, open_list_f, closed_list_b
     if len(damaged_dict) - max_level_b + len(current_node.visited) + 1 >= len(damaged_dict):
 
         cur_visited = current_node.visited
-        for other_end in open_list_b + closed_list_b:
+        for other_end in open_list_b:
         # for other_end in open_list_b:
 
             if len(set(other_end.visited).intersection(set(cur_visited))) == 0 and len(damaged_dict) - len(set(other_end.visited).union(set(cur_visited))) == 1:
@@ -725,7 +726,7 @@ def expand_backward(start_node, end_node, open_list_b, open_list_f, closed_list_
 
     if max_level_f + len(current_node.visited) + 1 >= len(damaged_dict):
         cur_visited = current_node.visited
-        for other_end in open_list_f + closed_list_f:
+        for other_end in open_list_f:
         # for other_end in open_list_f:
 
             if len(set(other_end.visited).intersection(set(cur_visited))) == 0 and len(damaged_dict) - len(set(other_end.visited).union(set(cur_visited))) == 1:
@@ -1018,7 +1019,7 @@ def search(start_node, end_node, best_ub, greedy_soln, beam_search=False, beam_k
             return best_feasible_soln.path, best_feasible_soln.g, num_tap_solved, tot_child, uncommon_number, common_number, num_purged
 
         if max_level_b > int(len(damaged_dict)/4) or max_level_f > int(len(damaged_dict)/4):
-            if iter_count % 4 == 0:
+            if iter_count % 10 == 0:
 
                 if beam_search:
                     open_list_b, open_list_f, closed_list_b, closed_list_f, num_purged = purge(
@@ -1599,7 +1600,8 @@ if __name__ == '__main__':
     os.makedirs(NETWORK_DIR, exist_ok=True)
 
     if graphing:
-        get_tables(NETWORK_DIR)
+        get_common_numbers()
+        # get_tables(NETWORK_DIR)
     else:
         if rand_gen:
 
@@ -1651,12 +1653,55 @@ if __name__ == '__main__':
                     sorted_d = sorted_d[:cutind]
                 except:
                     sorted_d = sorted_d
-                all_links = [lnk[0] for lnk in sorted_d]
-                # all_links = [lnk for lnk in net.link.keys()]
 
+
+                all_links = [lnk[0] for lnk in sorted_d]
                 all_links = sorted(all_links)
                 np.random.seed((rep+1)*42+int(num_broken))
-                damaged_links = np.random.choice(all_links, num_broken, replace=False)
+
+                netg = Network(NETFILE, TRIPFILE)
+                G = nx.DiGraph()
+
+
+                G.add_nodes_from(np.arange(len(netg.node)) + 1)
+                edge_list = []
+                for alink in netg.link:
+                    edge_list.append((int(netg.link[alink].tail), int(netg.link[alink].head)))
+                G.add_edges_from(edge_list)
+
+                damaged_links = []
+                decoy = deepcopy(all_links)
+                i = 0
+
+                dG = deepcopy(G)
+                prev_dG = deepcopy(G)
+                del G
+
+                while i < int(num_broken):
+                    ij = np.random.choice(decoy, 1, replace=False)[0]
+                    u = netg.link[ij].tail
+                    v = netg.link[ij].head
+                    dG.remove_edge(u, v)
+
+                    all_reachable = True
+                    for od in netg.ODpair.values():
+                        if not nx.has_path(dG, od.origin, od.destination):
+                            all_reachable = False
+                            dG = deepcopy(prev_dG)
+                            break
+
+                    if all_reachable:
+                        i += 1
+                        damaged_links.append(ij)
+                        prev_dG = deepcopy(dG)
+
+                del netg
+                del dG
+                del prev_dG
+
+                print('damaged_links are created')
+
+                # damaged_links = np.random.choice(all_links, num_broken, replace=False)
                 damaged_dict = {}
 
                 for a_link in damaged_links:
