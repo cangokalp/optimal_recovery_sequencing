@@ -82,6 +82,9 @@ def net_update(net, args, flows=False):
             if file_created:
                 with open(f, "r") as flow_file:
                     for line in flow_file.readlines():
+
+                        if line.find('(') == -1:
+                            continue
                         try:
                             ij = str(line[:line.find(' ')])
                             line = line[line.find(' '):].strip()
@@ -107,6 +110,7 @@ def net_update(net, args, flows=False):
     while not file_created:
         if os.path.exists(f):
             file_created = True
+
         if file_created:
             with open(f, "r") as log_file:
                 last_line = log_file.readlines()[-1]
@@ -135,6 +139,7 @@ def net_update(net, args, flows=False):
                         tstt = float(obj[:obj.find(',')])
                     except:
                         try_again = True
+
             os.remove('full_log.txt')
     
     os.remove('current_net.tntp')
@@ -142,45 +147,60 @@ def net_update(net, args, flows=False):
     return tstt
 
 
-def solve_UE(net=None, relax=False, eval_seq=False, flows=False):
+def solve_UE(net=None, relax=False, eval_seq=False, flows=False, wu=True, rev=False):
 
     # modify the net.txt file to send to c code
     shutil.copy(net.netfile, 'current_net.tntp')
     networkFileName = "current_net.tntp"
 
+    if len(net.not_fixed) > 0:
+        df = pd.read_csv(networkFileName, 'r+', delimiter='\t')
 
+        for a_link in net.not_fixed:
+            home = a_link[a_link.find("'(") + 2:a_link.find(",")]
+            to = a_link[a_link.find(",") + 1:]
+            to = to[:to.find(")")]
+            try:
+                ind = df[(df['Unnamed: 1'] == str(home)) & (df['Unnamed: 2'] == str(to))].index.tolist()[0]
+            except:
+                pdb.set_trace()
 
-    df = pd.read_csv(networkFileName, 'r+', delimiter='\t')
+            df.loc[ind, 'Unnamed: 3'] = 1e-10
+            df.loc[ind, 'Unnamed: 5'] = 1e10
 
-    for a_link in net.not_fixed:
-        home = a_link[a_link.find("'(") + 2:a_link.find(",")]
-        to = a_link[a_link.find(",") + 1:]
-        to = to[:to.find(")")]
-        try:
-            ind = df[(df['Unnamed: 1'] == str(home)) & (
-                df['Unnamed: 2'] == str(to))].index.tolist()[0]
-        except:
-            pdb.set_trace()
-        df.loc[ind, 'Unnamed: 5'] = 1e8
-
-    df.to_csv('current_net.tntp', index=False, sep="\t")
-
+        df.to_csv('current_net.tntp', index=False, sep="\t")
     f = 'current_net.tntp'
     file_created = False
     while not file_created:
         if os.path.exists(f):
             file_created = True
 
+
+    if rev:
+        bush_loc = 'after/batch0.bin'
+    else:
+        bush_loc = 'before/batch0.bin'
+
+    # if wu:
+    #     folder_loc = "tap-b_wu/bin/tap "
+    #     shutil.copy(bush_loc, 'batch0.bin')
+    # else:
+    folder_loc = "tap-b/bin/tap "
+        # print('non_wu')
+
+    start = time.time()
     if eval_seq:
-        args = shlex.split("tap-b_real/bin/tap current_net.tntp " + net.tripfile)
+        args = shlex.split(folder_loc + "1e-7 1 " +"current_net.tntp " + net.tripfile + " 8")
     else:
         if relax:
-            args = shlex.split("tap-b_relax/bin/tap current_net.tntp " + net.tripfile)
+            args = shlex.split(folder_loc + "1e-4 1 " + "current_net.tntp " + net.tripfile + " 8")
         else:
-            args = shlex.split("tap-b/bin/tap current_net.tntp " + net.tripfile)
+            args = shlex.split(folder_loc + "1e-6 1 " + "current_net.tntp " + net.tripfile + " 8")
+
 
     popen = subprocess.run(args, stdout=subprocess.DEVNULL)
-
+    elapsed = time.time() - start
+    # print('tap elapsed: {}, wu: {}, eval_seq: {}, relax: {} '.format(elapsed, wu, eval_seq, relax))
     tstt = net_update(net, args, flows)
 
     return tstt

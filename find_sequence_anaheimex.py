@@ -39,8 +39,6 @@ parser.add_argument('-r', '--reps', type=int,
                     help='number of scenarios with the given parameters', default=1)
 parser.add_argument('-g', '--graphing', type=bool, 
                     help='graphing mode', default=False)
-parser.add_argument('-l', '--loc', type=bool,
-                    help='location based sampling', default=False)
 parser.add_argument('-o', '--scenario', type=str, 
                     help='scenario file', default='scenario.csv')
 parser.add_argument('-t', '--strength', type=str, 
@@ -59,11 +57,6 @@ FOLDER = "TransportationNetworks"
 MAX_DAYS = 180
 MIN_DAYS = 21
 
-class BestSoln():
-    """A node class for bi-directional search for pathfinding"""
-    def __init__(self):
-        self.cost = None
-        self.path = None
 
 class Node():
     """A node class for bi-directional search for pathfinding"""
@@ -146,19 +139,16 @@ class Node():
         return self.fixed == other.fixed
 
 
-def get_successors_f(node, iter_num):
+def get_successors_f(node):
     """given a state, returns list of bridges that has not been fixed yet"""
     not_visited = node.not_visited
-
-
     successors = []
 
     if node.level != 0:
         tail = node.path[-1]
         for a_link in not_visited:
-            if iter_num >= 1000:
-                if wb[a_link]/damaged_dict[a_link] - bb[tail]/damaged_dict[tail] > 0:
-                    continue
+            # if wb[a_link] * damaged_dict[tail] - bb[tail] * damaged_dict[a_link] > 0:
+            #     continue
             successors.append(a_link)
     else:
         successors = not_visited
@@ -166,7 +156,7 @@ def get_successors_f(node, iter_num):
     return successors
 
 
-def get_successors_b(node, iter_num):
+def get_successors_b(node):
     """given a state, returns list of bridges that has not been removed yet"""
     not_visited = node.not_visited
     successors = []
@@ -174,9 +164,11 @@ def get_successors_b(node, iter_num):
     if node.level != 0:
         tail = node.path[-1]
         for a_link in not_visited:
-            if iter_num >= 1000:
-                if -wb[tail] * damaged_dict[a_link] + bb[a_link] * damaged_dict[tail] < 0:
-                    continue
+
+            # if wb[tail] * node.damaged_dict[a_link] - bb[a_link] *
+            # node.damaged_dict[tail] > 0:
+            # if -wb[tail] * damaged_dict[a_link] + bb[a_link] * damaged_dict[tail] < 0:
+            #     continue
             successors.append(a_link)
     else:
         successors = not_visited
@@ -192,7 +184,6 @@ def expand_sequence_f(node, a_link, level):
     net = create_network(NETFILE, TRIPFILE)
 
     net.not_fixed = set(node.not_fixed).difference(set([a_link]))
-    global memory
 
     if frozenset(net.not_fixed) in memory.keys():
         tstt_after = memory[frozenset(net.not_fixed)]
@@ -202,21 +193,6 @@ def expand_sequence_f(node, a_link, level):
         memory[frozenset(net.not_fixed)] = (tstt_after)
         solved = 1
 
-    global wb_update
-    global bb_update
-
-    diff = tstt_before - tstt_after
-    if wb_update[a_link] > diff:
-        wb_update[a_link] = diff
-    if bb_update[a_link] < diff:
-        bb_update[a_link] = diff
-
-    global wb
-    global bb
-    if wb[a_link] > diff:
-        wb[a_link] = diff
-    if bb[a_link] < diff:
-        bb[a_link] = diff
 
     node = Node(link_id=a_link, parent=node, tstt_after=tstt_after,
                 tstt_before=tstt_before, level=level, relax=node.relax)
@@ -236,35 +212,19 @@ def expand_sequence_b(node, a_link, level):
 
     net.not_fixed = node.not_fixed.union(set([a_link]))
 
-    global memory
     if frozenset(net.not_fixed) in memory.keys():
         tstt_before = memory[frozenset(net.not_fixed)]
     else:
-        tstt_before = solve_UE(net=net, relax=node.relax)
+        tstt_before = solve_UE(net=net, relax=node.relax, rev=True)
         memory[frozenset(net.not_fixed)] = tstt_before
         solved = 1
-
-    global wb_update
-    global bb_update
-
-    diff = tstt_before - tstt_after
-    if wb_update[a_link] > diff:
-        wb_update[a_link] = diff
-    if bb_update[a_link] < diff:
-        bb_update[a_link] = diff
-
-    global wb
-    global bb
-    if wb[a_link] > diff:
-        wb[a_link] = diff
-    if bb[a_link] < diff:
-        bb[a_link] = diff
 
     node = Node(link_id=a_link, parent=node, tstt_after=tstt_after,
                 tstt_before=tstt_before, level=level, relax=node.relax)
 
     del net
     return node, solved
+
 
 
 def check(fwd_node, bwd_node, relax):
@@ -283,7 +243,7 @@ def check(fwd_node, bwd_node, relax):
     return fwd_tstt, bwd_tstt, fwdnet, bwdnet
 
 
-def get_minlb(node, fwd_node, bwd_node, orderedb_benefits, orderedw_benefits, ordered_days, forward_tstt, backward_tstt, bfs=None, uncommon_number=0, common_number=0):
+def get_minlb(node, fwd_node, bwd_node, orderedb_benefits, orderedw_benefits, ordered_days, forward_tstt, backward_tstt, backwards=False, best_feasible_soln=None, uncommon_number=0, common_number=0):
 
     slack = forward_tstt - backward_tstt
     if slack < 0:
@@ -298,9 +258,9 @@ def get_minlb(node, fwd_node, bwd_node, orderedb_benefits, orderedw_benefits, or
         cur_obj = fwd_node.realized + bwd_node.realized
         new_feasible_path = fwd_node.path + bwd_node.path[::-1]
 
-        if cur_obj < bfs.cost:
-            bfs.cost = cur_obj
-            bfs.path = new_feasible_path
+        if cur_obj < best_feasible_soln.g:
+            best_feasible_soln.g = cur_obj
+            best_feasible_soln.path = new_feasible_path
 
         return uncommon_number, common_number
 
@@ -317,9 +277,9 @@ def get_minlb(node, fwd_node, bwd_node, orderedb_benefits, orderedw_benefits, or
         new_feasible_path = fwd_node.path + \
             [str(lo_link[0])] + bwd_node.path[::-1]
 
-        if cur_obj < bfs.cost:
-            bfs.cost = cur_obj
-            bfs.path = new_feasible_path
+        if cur_obj < best_feasible_soln.g:
+            best_feasible_soln.g = cur_obj
+            best_feasible_soln.path = new_feasible_path
 
         return uncommon_number, common_number
 
@@ -330,7 +290,6 @@ def get_minlb(node, fwd_node, bwd_node, orderedb_benefits, orderedw_benefits, or
 
     orig_lb = node.lb
     orig_ub = node.ub
-
 
     ###### FIND LB FROM FORWARDS #####
     if sumw < slack:
@@ -398,7 +357,7 @@ def get_minlb(node, fwd_node, bwd_node, orderedb_benefits, orderedw_benefits, or
     return uncommon_number, common_number
 
 
-def set_bounds_bif(node, open_list_b, end_node, front_to_end=True, bfs=None, uncommon_number=0, common_number=0):
+def set_bounds_bif(node, open_list_b, end_node, front_to_end=True, best_feasible_soln=None, uncommon_number=0, common_number=0, get_feas=False):
 
     sorted_d = sorted(damaged_dict.items(), key=lambda x: x[1])
 
@@ -418,16 +377,12 @@ def set_bounds_bif(node, open_list_b, end_node, front_to_end=True, bfs=None, unc
     if len(eligible_backward_connects) == 0:
         eligible_backward_connects = [end_node]
 
-    # if min(open_list_b.keys()) >= 5:
-    #     eligible_backward_connects.append(end_node)
-
-
     minother_end = None
     for other_end in eligible_backward_connects:
         ordered_days = []
         orderedw_benefits = []
         orderedb_benefits = []
-
+        # debug right here
         node.ub = node.realized_u + other_end.realized_u
         node.lb = node.realized + other_end.realized
 
@@ -446,7 +401,7 @@ def set_bounds_bif(node, open_list_b, end_node, front_to_end=True, bfs=None, unc
 
 
         uncommon_number, common_number = get_minlb(node, node, other_end, orderedb_benefits,
-                  orderedw_benefits, ordered_days, forward_tstt, backward_tstt, bfs=bfs, uncommon_number=uncommon_number, common_number=common_number)
+                  orderedw_benefits, ordered_days, forward_tstt, backward_tstt, best_feasible_soln=best_feasible_soln, uncommon_number=uncommon_number, common_number=common_number)
 
         if node.lb < minlb:
             minlb = node.lb
@@ -458,6 +413,31 @@ def set_bounds_bif(node, open_list_b, end_node, front_to_end=True, bfs=None, unc
     node.lb = minlb
     node.ub = maxub
 
+    if get_feas:
+        accrued = node.realized + minother_end.realized
+        union = node.visited.union(minother_end.visited)
+        remaining = set(damaged_dict.keys()).difference(union)
+        for key, value in sorted_d:
+            # print("%s: %s" % (key, value))
+            if key in remaining:
+                ordered_days.append(value)
+                orderedb_benefits.append(bb[key])
+
+        _, _, rem_ord = orderlists(orderedb_benefits, ordered_days, rem_keys=remaining)
+
+        net_a = create_network(NETFILE, TRIPFILE)
+        net_a.not_fixed = remaining
+        tstt_after = node.tstt_after
+
+        for added in remaining:
+            net_a.not_fixed = set(remaining).union(minother_end.visited).difference(set(added))
+            accrued += (tstt_after - node.before_eq_tstt) * damaged_dict[added]
+            tstt_after = solve_UE(net=net_a)
+
+        new_feasible_path = node.path + rem_ord + minother_end.path
+        if accrued < best_feasible_soln.g:
+            best_feasible_soln.g = accrued
+            best_feasible_soln.path = new_feasible_path
 
     if node.lb > node.ub:
         pdb.set_trace()
@@ -465,7 +445,7 @@ def set_bounds_bif(node, open_list_b, end_node, front_to_end=True, bfs=None, unc
     return uncommon_number, common_number
 
 
-def set_bounds_bib(node, open_list_f, start_node, front_to_end=True, bfs=None, uncommon_number=0, common_number=0):
+def set_bounds_bib(node, open_list_f, start_node, front_to_end=True, best_feasible_soln=None, uncommon_number=0, common_number=0, get_feas=False):
 
     sorted_d = sorted(damaged_dict.items(), key=lambda x: x[1])
 
@@ -485,9 +465,6 @@ def set_bounds_bib(node, open_list_f, start_node, front_to_end=True, bfs=None, u
     if len(eligible_backward_connects) == 0:
         eligible_backward_connects = [start_node]
 
-    # if min(open_list_f.keys()) >= 5:
-    #     eligible_backward_connects.append(start_node)
-
     minother_end = None
     for other_end in eligible_backward_connects:
         ordered_days = []
@@ -501,6 +478,7 @@ def set_bounds_bib(node, open_list_f, start_node, front_to_end=True, bfs=None, u
         remaining = set(damaged_dict.keys()).difference(union)
 
         for key, value in sorted_d:
+            # print("%s: %s" % (key, value))
             if key in remaining:
                 ordered_days.append(value)
                 orderedw_benefits.append(wb[key])
@@ -509,10 +487,8 @@ def set_bounds_bib(node, open_list_f, start_node, front_to_end=True, bfs=None, u
         backward_tstt = node.tstt_before
 
 
-
         uncommon_number, common_number = get_minlb(node, other_end, node, orderedb_benefits, orderedw_benefits,
-                  ordered_days, forward_tstt, backward_tstt, bfs=bfs, uncommon_number=uncommon_number, common_number=common_number)
-
+                  ordered_days, forward_tstt, backward_tstt, backwards=True, best_feasible_soln=best_feasible_soln, uncommon_number=uncommon_number, common_number=common_number)
 
         if node.lb < minlb:
             minlb = node.lb
@@ -523,13 +499,38 @@ def set_bounds_bib(node, open_list_f, start_node, front_to_end=True, bfs=None, u
     node.lb = minlb
     node.ub = maxub
 
+    if get_feas:
+        pdb.set_trace()
+        accrued = node.realized + minother_end.realized
+        union = node.visited.union(minother_end.visited)
+        remaining = set(damaged_dict.keys()).difference(union)
+        for key, value in sorted_d:
+            # print("%s: %s" % (key, value))
+            if key in remaining:
+                ordered_days.append(value)
+                orderedb_benefits.append(bb[key])
 
+        _, _, rem_ord = orderlists(orderedb_benefits, ordered_days, rem_keys=remaining)
+
+        net_a = create_network(NETFILE, TRIPFILE)
+        net_a.not_fixed = remaining
+        tstt_before = minother_end.tstt_after
+        for added in remaining:
+            net_a.not_fixed = set(remaining).union(node.path).difference(set(added))
+            accrued += (tstt_before - node.before_eq_tstt) * damaged_dict[added]
+            tstt_before = solve_UE(net=net_a)
+
+        new_feasible_path = minother_end.path + rem_ord + node.path
+        if accrued < best_feasible_soln.g:
+            best_feasible_soln.g = accrued
+            best_feasible_soln.path = new_feasible_path
+            print(accrued)
     if node.lb > node.ub:
         pdb.set_trace()
     return uncommon_number, common_number
 
 
-def expand_forward(start_node, end_node, minimum_ff_n, open_list_b, open_list_f, bfs, num_tap_solved, max_level_b, closed_list_f, closed_list_b, iter_num, front_to_end=False, uncommon_number=0, tot_child=0, common_number=0):
+def expand_forward(start_node, end_node, minimum_ff_n, open_list_b, open_list_f, best_ub, best_feasible_soln, num_tap_solved, max_level_b, front_to_end=False, uncommon_number=0, tot_child=0, common_number=0):
 
     fvals = [node.f for node in sum(open_list_f.values(),[])]
     minfind = np.argmin(fvals)
@@ -542,15 +543,12 @@ def expand_forward(start_node, end_node, minimum_ff_n, open_list_b, open_list_f,
 
     cur_visited = current_node.visited
 
-    can1, can2, can3, can4 = False, False, False, False
+    can1 = False
+    can2 = False
     if len(damaged_dict)-len(cur_visited) in open_list_b.keys():
         can1 = True
     if len(damaged_dict)-len(cur_visited) - 1 in open_list_b.keys():
         can2 = True
-    # if len(damaged_dict)-len(cur_visited) in closed_list_b.keys():
-    #     can3 = True
-    # if len(damaged_dict)-len(cur_visited) - 1 in closed_list_b.keys():
-    #     can4 = True
 
 
     go_through = []
@@ -558,10 +556,6 @@ def expand_forward(start_node, end_node, minimum_ff_n, open_list_b, open_list_f,
         go_through.extend(open_list_b[len(damaged_dict) - len(cur_visited)])
     if can2:
         go_through.extend(open_list_b[len(damaged_dict) - len(cur_visited) - 1])
-    # if can3:
-    #     go_through.extend(closed_list_b[len(damaged_dict) - len(cur_visited)])
-    # if can4:
-    #     go_through.extend(closed_list_b[len(damaged_dict) - len(cur_visited) - 1])
 
     for other_end in go_through:
 
@@ -575,31 +569,36 @@ def expand_forward(start_node, end_node, minimum_ff_n, open_list_b, open_list_f,
             cur_path = current_node.path + \
                 [str(lo_link)] + other_end.path[::-1]
 
-            if cur_soln <= bfs.cost:
-                bfs.cost = cur_soln
-                bfs.path = cur_path
+            if cur_soln <= best_feasible_soln.g:
+                best_feasible_soln.g = cur_soln
+                best_feasible_soln.path = cur_path
+                print('-------BEST_SOLN-----: ', best_feasible_soln.g)
 
 
         if set(other_end.not_visited) == set(cur_visited):
             cur_soln = current_node.g + other_end.g
             cur_path = current_node.path + other_end.path[::-1]
-            if cur_soln <= bfs.cost:
+            if cur_soln <= best_feasible_soln.g:
 
-                bfs.cost = cur_soln
-                bfs.path = cur_path
+                best_feasible_soln.g = cur_soln
+                best_feasible_soln.path = cur_path
+                print('-------BEST_SOLN-----: ', best_feasible_soln.g)
+
+
+    if best_feasible_soln.g < best_ub:
+        best_ub = best_feasible_soln.g
 
     # Found the goal
     if current_node == end_node:
         # print('at the end_node')
-        return open_list_f, num_tap_solved, current_node.level, minimum_ff_n, tot_child, uncommon_number, common_number
+        return open_list_f,  best_ub, best_feasible_soln, num_tap_solved, current_node.level, minimum_ff_n, tot_child, uncommon_number, common_number
 
-    if iter_num > 100:
-        if current_node.f > bfs.cost:
-            # print('current node is pruned')
-            return open_list_f, num_tap_solved, current_node.level, minimum_ff_n, tot_child, uncommon_number, common_number
+    if current_node.f > best_feasible_soln.g or current_node.f > best_ub:
+        # print('current node is pruned')
+        return open_list_f,  best_ub, best_feasible_soln, num_tap_solved, current_node.level, minimum_ff_n, tot_child, uncommon_number, common_number
 
     # Generate children
-    eligible_expansions = get_successors_f(current_node, iter_num)
+    eligible_expansions = get_successors_f(current_node)
     children = []
 
     current_level = current_node.level
@@ -640,19 +639,18 @@ def expand_forward(start_node, end_node, minimum_ff_n, open_list_b, open_list_f,
 
         # set upper and lower bounds
         tot_child += 1
-
-
         uncommon_number, common_number = set_bounds_bif(child, open_list_b,
-                       front_to_end=front_to_end, end_node=end_node, bfs=bfs, uncommon_number=uncommon_number, common_number=common_number)
+                       front_to_end=front_to_end, end_node=end_node, best_feasible_soln=best_feasible_soln, uncommon_number=uncommon_number, common_number=common_number)
 
+        if best_feasible_soln.g < best_ub:
+            best_ub = best_feasible_soln.g
 
-
-        if child.ub <= bfs.cost:
-            # best_ub = child.ub
+        if child.ub <= best_ub:
+            best_ub = child.ub
             if len(child.path) == len(damaged_dict):
-                if child.g < bfs.cost:
-                    bfs.cost = child.g
-                    bfs.path = child.path
+                if child.g < best_feasible_soln.g:
+                    best_feasible_soln.g = child.g
+                    best_feasible_soln.path = child.path
 
         if child.lb == child.ub:
             continue
@@ -663,9 +661,10 @@ def expand_forward(start_node, end_node, minimum_ff_n, open_list_b, open_list_f,
         child.g = child.realized
         child.f = child.lb
 
-        if iter_num > 100:
-            if child.f > bfs.cost:
-                continue
+
+
+        if child.f > best_feasible_soln.g or child.f > best_ub:
+            continue
 
         if current_level not in open_list_f.keys():
             open_list_f[current_level] = []
@@ -673,10 +672,10 @@ def expand_forward(start_node, end_node, minimum_ff_n, open_list_b, open_list_f,
         open_list_f[current_level].append(child)
         del child
 
-    return open_list_f, num_tap_solved, current_level, minimum_ff_n, tot_child, uncommon_number, common_number
+    return open_list_f,  best_ub, best_feasible_soln, num_tap_solved, current_level, minimum_ff_n, tot_child, uncommon_number, common_number
 
 
-def expand_backward(start_node, end_node, minimum_bf_n, open_list_b, open_list_f, bfs, num_tap_solved, max_level_f, closed_list_f, closed_list_b, iter_num, front_to_end=False, uncommon_number=0, tot_child=0, common_number=0):
+def expand_backward(start_node, end_node, minimum_bf_n, open_list_b, open_list_f, best_ub, best_feasible_soln, num_tap_solved, max_level_f, front_to_end=False, uncommon_number=0, tot_child=0, common_number=0):
 
     # Loop until you find the end
 
@@ -693,25 +692,18 @@ def expand_backward(start_node, end_node, minimum_bf_n, open_list_b, open_list_f
 
     cur_visited = current_node.visited
 
-    can1, can2, can3, can4 = False, False, False, False
+    can1 = False
+    can2 = False
     if len(damaged_dict)-len(cur_visited) in open_list_f.keys():
         can1 = True
     if len(damaged_dict)-len(cur_visited) - 1 in open_list_f.keys():
         can2 = True
-    # if len(damaged_dict)-len(cur_visited) in closed_list_f.keys():
-    #     can3 = True
-    # if len(damaged_dict)-len(cur_visited) - 1 in closed_list_f.keys():
-    #     can4 = True
 
     go_through = []
     if can1:
         go_through.extend(open_list_f[len(damaged_dict)-len(cur_visited)])
     if can2:
         go_through.extend(open_list_f[len(damaged_dict)-len(cur_visited)-1])
-    # if can3:
-    #     go_through.extend(closed_list_f[len(damaged_dict) - len(cur_visited)])
-    # if can4:
-    #     go_through.extend(closed_list_f[len(damaged_dict) - len(cur_visited) - 1])
 
     for other_end in go_through:
 
@@ -723,30 +715,35 @@ def expand_backward(start_node, end_node, minimum_bf_n, open_list_b, open_list_f
                 (other_end.tstt_after - other_end.before_eq_tstt) * \
                 damaged_dict[lo_link]
 
-            if cur_soln <= bfs.cost:
-                bfs.cost = cur_soln
-                bfs.path = other_end.path + \
+            if cur_soln <= best_feasible_soln.g:
+                best_feasible_soln.g = cur_soln
+                best_feasible_soln.path = other_end.path + \
                     [str(lo_link)] + current_node.path[::-1]
+                print('-------BEST_SOLN-----: ', best_feasible_soln.g)
 
         elif set(other_end.not_visited) == set(cur_visited):
             cur_soln = current_node.g + other_end.g
-            if cur_soln <= bfs.cost:
-                bfs.cost = cur_soln
-                bfs.path = other_end.path + \
+            if cur_soln <= best_feasible_soln.g:
+                best_feasible_soln.g = cur_soln
+                best_feasible_soln.path = other_end.path + \
                     current_node.path[::-1]
+                print('-------BEST_SOLN-----: ', best_feasible_soln.g)
 
 
+    if best_feasible_soln.g < best_ub:
+        best_ub = best_feasible_soln.g
 
     # Found the goal
     if current_node == start_node:
-        return open_list_b, num_tap_solved, current_node.level, minimum_bf_n, tot_child, uncommon_number, common_number
+        # print('at the start node')
+        return open_list_b, best_ub, best_feasible_soln, num_tap_solved, current_node.level, minimum_bf_n, tot_child, uncommon_number, common_number
 
-    if iter_num > 100:
-        if current_node.f > bfs.cost:
-            return open_list_b, num_tap_solved, current_node.level, minimum_bf_n, tot_child, uncommon_number, common_number
+    if current_node.f > best_ub:
+        # print('current node is pruned')
+        return open_list_b, best_ub, best_feasible_soln, num_tap_solved, current_node.level, minimum_bf_n, tot_child, uncommon_number, common_number
 
     # Generate children
-    eligible_expansions = get_successors_b(current_node, iter_num)
+    eligible_expansions = get_successors_b(current_node)
 
     children = []
 
@@ -793,16 +790,17 @@ def expand_backward(start_node, end_node, minimum_bf_n, open_list_b, open_list_f
         # set upper and lower bounds
         tot_child += 1
         uncommon_number, common_number = set_bounds_bib(child, open_list_f,
-                       front_to_end=front_to_end, start_node=start_node, bfs=bfs, uncommon_number=uncommon_number, common_number=common_number)
+                       front_to_end=front_to_end, start_node=start_node, best_feasible_soln=best_feasible_soln, uncommon_number=uncommon_number, common_number=common_number)
 
+        if best_feasible_soln.g < best_ub:
+            best_ub = best_feasible_soln.g
 
-
-        if child.ub <= bfs.cost:
-            # best_ub = child.ub
+        if child.ub <= best_ub:
+            best_ub = child.ub
             if len(child.path) == len(damaged_dict):
-                if child.g < bfs.cost:
-                    bfs.cost = child.g
-                    bfs.path = child.path[::-1]
+                if child.g < best_feasible_soln.g:
+                    best_feasible_soln.g = child.g
+                    best_feasible_soln.path = child.path[::-1]
 
         if child.lb == child.ub:
             continue
@@ -813,174 +811,84 @@ def expand_backward(start_node, end_node, minimum_bf_n, open_list_b, open_list_f
         child.g = child.realized
         child.f = child.lb
 
-        if iter_num > 100:
-            if child.f > bfs.cost:
-                continue
+
+        if child.f > best_feasible_soln.g or child.f > best_ub:
+            continue
 
         if current_level not in open_list_b.keys():
             open_list_b[current_level] = []
         open_list_b[current_level].append(child)
         del child
 
-    return open_list_b, num_tap_solved, current_level, minimum_bf_n, tot_child, uncommon_number, common_number
+    return open_list_b,  best_ub, best_feasible_soln, num_tap_solved, current_level, minimum_bf_n, tot_child, uncommon_number, common_number
 
-def purge(open_list_b, open_list_f, beam_k, num_purged, len_f, len_b, closed_list_f, closed_list_b, f_activated, b_activated, minimum_ff_n, minimum_bf_n, iter_num):
-    starting = 250
-    if len_f >= starting or f_activated:
-        f_activated = 1
+def purge(open_list_b, open_list_f, max_level_f, max_level_b, beam_k, num_purged, len_f, len_b):
+    starting = 400
+    if len_f >= starting:
 
-        for i in range(2, len(damaged_dict) + 1):
-
+        for i in range(1, len(damaged_dict)):
             if i in open_list_f.keys():
                 values_ofn = np.ones((beam_k)) * np.inf
                 indices_ofn = np.ones((beam_k)) * np.inf
                 keep_f = []
-                if len(open_list_f[i]) == 0:
-                    del open_list_f[i]
-                    continue
 
                 for idx, ofn in enumerate(open_list_f[i]):
                     cur_lev = ofn.level
-                    # if cur_lev > starting:
-                    try:
-                        cur_max = np.max(values_ofn[:])
-                        max_idx = np.argmax(values_ofn[:])
+                    if cur_lev > starting:
+                        try:
+                            cur_max = np.max(values_ofn[:])
+                            max_idx = np.argmax(values_ofn[:])
+                        except:
+                            pdb.set_trace()
 
-                    except:
-                        pdb.set_trace()
-
-                    if ofn.f < cur_max:
-                        indices_ofn[max_idx] = idx
-                        values_ofn[max_idx] = ofn.f
-
-                    # else:
-                    #     keep_f.append(idx)
+                        if ofn.f < cur_max:
+                            indices_ofn[max_idx] = idx
+                            values_ofn[max_idx] = ofn.f
+                    else:
+                        keep_f.append(idx)
                 indices_ofn = indices_ofn.ravel()
                 indices_ofn = indices_ofn[indices_ofn < 1000]
                 keepinds = np.concatenate((np.array(keep_f), indices_ofn), axis=None).astype(int)
                 if len(indices_ofn) > 0:
                     num_purged += len(open_list_f[i]) - len(indices_ofn)
-                closed_list_f[i] = list(
-                    np.array(open_list_f[i])[list(set(range(len(open_list_f[i]))).difference(set(keepinds)))])
                 open_list_f[i] = list(np.array(open_list_f[i])[keepinds])
+    # num_purged += len(not_kept)
+    not_kept = []
 
-                olf_node = open_list_f[i][np.argmin([node.f for node in open_list_f[i]])]
-                olf_min = olf_node.f
-                olf_ub = olf_node.ub
-                removed_from_closed = []
-
-
-
-                if iter_num <= 500:
-                    for a_node in closed_list_f[i]:
-                        if a_node.lb <= olf_min*1.1:
-                            open_list_f[i].append(a_node)
-                            removed_from_closed.append(a_node)
-                        elif a_node.ub <= olf_ub:
-                            open_list_f[i].append(a_node)
-                            removed_from_closed.append(a_node)
-
-                elif iter_num <= 1000:
-                    for a_node in closed_list_f[i]:
-                        if a_node.lb <= olf_min * 1.05:
-                            open_list_f[i].append(a_node)
-                            removed_from_closed.append(a_node)
-                        elif a_node.ub*1.05 <= olf_ub:
-                            open_list_f[i].append(a_node)
-                            removed_from_closed.append(a_node)
-
-                elif iter_num <= 1500:
-                    for a_node in closed_list_f[i]:
-                        if a_node.lb <= olf_min * 1.01:
-                            open_list_f[i].append(a_node)
-                            removed_from_closed.append(a_node)
-                #         elif a_node.ub <= olf_ub:
-                #             open_list_f[i].append(a_node)
-                #             removed_from_closed.append(a_node)
-
-
-                for a_node in removed_from_closed:
-                    closed_list_f[i].remove(a_node)
-                del removed_from_closed
-
-
-    if len_b >= starting or b_activated:
-        b_activated = 1
-
-        for i in range(2, len(damaged_dict)+1):
-
+    if len_b >= starting:
+        #not sure about the range of i here !! check
+        for i in range(1, len(damaged_dict)):
             if i in open_list_b.keys():
                 keep_b = []
                 values_ofn = np.ones((beam_k)) * np.inf
                 indices_ofn = np.ones((beam_k)) * np.inf
-
-                if len(open_list_b[i]) == 0:
-                    del open_list_b[i]
-                    continue
-
                 for idx, ofn in enumerate(open_list_b[i]):
 
                     cur_lev = ofn.level
-                    try:
-                        cur_max = np.max(values_ofn[:])
-                        max_idx = np.argmax(values_ofn[:])
-                    except:
-                        pdb.set_trace()
+                    if cur_lev > starting:
+                        try:
+                            cur_max = np.max(values_ofn[:])
+                            max_idx = np.argmax(values_ofn[:])
+                        except:
+                            pdb.set_trace()
 
-                    if ofn.f < cur_max:
-                        indices_ofn[max_idx] = idx
-                        values_ofn[max_idx] = ofn.f
-                    # else:
-                    #     keep_b.append(idx)
+                        if ofn.f < cur_max:
+                            indices_ofn[max_idx] = idx
+                            values_ofn[max_idx] = ofn.f
+                    else:
+                        keep_b.append(idx)
 
                 indices_ofn = indices_ofn.ravel()
                 indices_ofn = indices_ofn[indices_ofn < 1000]
                 keepinds = np.concatenate((np.array(keep_b), indices_ofn), axis=None).astype(int)
                 if len(indices_ofn) > 0:
                     num_purged += len(open_list_b[i]) - len(indices_ofn)
-                closed_list_b[i] = list(np.array(open_list_b[i])[list(set(range(len(open_list_b[i]))).difference(set(keepinds)))])
                 open_list_b[i] = list(np.array(open_list_b[i])[keepinds])
 
-                olb_node = open_list_b[i][np.argmin([node.f for node in open_list_b[i]])]
-                olb_min = olb_node.f
-                olb_ub = olb_node.ub
-
-                removed_from_closed = []
-
-                if iter_num <= 500:
-                    for a_node in closed_list_b[i]:
-                        if a_node.lb <= olb_min * 1.1:
-                            open_list_b[i].append(a_node)
-                            removed_from_closed.append(a_node)
-                        elif a_node.ub <= olb_ub:
-                            open_list_b[i].append(a_node)
-                            removed_from_closed.append(a_node)
-                elif iter_num <= 1000:
-                    for a_node in closed_list_b[i]:
-                        if a_node.lb <= olb_min * 1.05:
-                            open_list_b[i].append(a_node)
-                            removed_from_closed.append(a_node)
-                        elif a_node.ub*1.05 <= olb_ub:
-                            open_list_b[i].append(a_node)
-                            removed_from_closed.append(a_node)
-                elif iter_num <= 1500:
-                    for a_node in closed_list_b[i]:
-                        if a_node.lb <= olb_min * 1.01:
-                            open_list_b[i].append(a_node)
-                            removed_from_closed.append(a_node)
-                #         elif a_node.ub <= olb_ub:
-                #             open_list_b[i].append(a_node)
-                #             removed_from_closed.append(a_node)
-
-                for a_node in removed_from_closed:
-                    closed_list_b[i].remove(a_node)
-                del removed_from_closed
+    return open_list_b, open_list_f, num_purged
 
 
-    return open_list_b, open_list_f, num_purged,  f_activated, b_activated, {}, {}
-    # return open_list_b, open_list_f, num_purged,  f_activated, b_activated, closed_list_f, closed_list_b
-
-def search(start_node, end_node, bfs, beam_search=False, beam_k=None, get_feas=True):
+def search(start_node, end_node, best_ub, lg_soln, greedy_soln, beam_search=False, beam_k=None, get_feas=True):
     """Returns the best order to visit the set of nodes"""
 
     # ideas in Holte: (search that meets in the middle)
@@ -988,7 +896,7 @@ def search(start_node, end_node, bfs, beam_search=False, beam_k=None, get_feas=T
     # pr(n) = max(f(n), 2g(n)) - min priority expands
     # U is best solution found so far - stops when - U <=max(C,fminF,fminB,gminF +gminB + eps)
     # this is for front to end
-    print('starting search with a feasible solution: ', bfs.cost)
+    print('starting search with best_ub: ', best_ub)
     max_level_b = 0
     max_level_f = 0
 
@@ -996,22 +904,25 @@ def search(start_node, end_node, bfs, beam_search=False, beam_k=None, get_feas=T
     kb, kf = 0, 0
 
     # solution comes from the greedy heuristic
+    best_feasible_soln = Node()
+    best_feasible_soln.g = best_ub
+    best_feasible_soln.path = lg_soln
 
     damaged_links = damaged_dict.keys()
 
     # Initialize both open and closed list for forward and backward directions
     open_list_f = {}
     open_list_f[max_level_f]=[start_node]
-    closed_list_f = {}
+
     open_list_b = {}
     open_list_b[max_level_b]=[end_node]
-    closed_list_b = {}
 
     minimum_ff_n = start_node
     minimum_bf_n = end_node
 
     num_tap_solved = 0
-    f_activated, b_activated = 0, 0
+    # bar = progressbar.ProgressBar(maxval=progressbar.UnknownLength).start()
+
     tot_child = 0
     uncommon_number = 0
     common_number = 0
@@ -1020,13 +931,12 @@ def search(start_node, end_node, bfs, beam_search=False, beam_k=None, get_feas=T
     len_f = len(sum(open_list_f.values(), []))
     len_b = len(sum(open_list_b.values(), []))
 
-    search_timer = time.time()
     while len_f > 0 or len_b > 0:
         iter_count += 1
         search_direction = 'Forward'
 
-        len_f = len(sum(open_list_f.values(), []))
-        len_b = len(sum(open_list_b.values(), []))
+        len_f = len(sum(open_list_f.values(),[]))
+        len_b = len(sum(open_list_b.values(),[]))
 
         if len_f <= len_b and len_f != 0:
             search_direction = 'Forward'
@@ -1036,75 +946,40 @@ def search(start_node, end_node, bfs, beam_search=False, beam_k=None, get_feas=T
             else:
                 search_direction = 'Forward'
 
-
         if search_direction == 'Forward':
-            open_list_f, num_tap_solved, level_f, minimum_ff_n, tot_child, uncommon_number, common_number = expand_forward(
-                start_node, end_node, minimum_ff_n, open_list_b, open_list_f, bfs, num_tap_solved, max_level_b, closed_list_f, closed_list_b, iter_count, front_to_end=False, uncommon_number=uncommon_number, tot_child=tot_child, common_number=common_number)
+            open_list_f, best_ub, best_feasible_soln, num_tap_solved, level_f, minimum_ff_n, tot_child, uncommon_number, common_number = expand_forward(
+                start_node, end_node, minimum_ff_n, open_list_b, open_list_f, best_ub, best_feasible_soln, num_tap_solved, max_level_b, front_to_end=False, uncommon_number=uncommon_number, tot_child=tot_child, common_number=common_number)
             max_level_f = max(max_level_f, level_f)
+            len_f = len(sum(open_list_f.values(), []))
 
         else:
-            open_list_b, num_tap_solved, level_b, minimum_bf_n, tot_child, uncommon_number, common_number = expand_backward(
-                start_node, end_node, minimum_bf_n , open_list_b, open_list_f, bfs, num_tap_solved, max_level_f, closed_list_f, closed_list_b, iter_count, front_to_end=False, uncommon_number=uncommon_number, tot_child=tot_child, common_number=common_number)
+            open_list_b, best_ub, best_feasible_soln, num_tap_solved, level_b, minimum_bf_n, tot_child, uncommon_number, common_number = expand_backward(
+                start_node, end_node, minimum_bf_n , open_list_b, open_list_f, best_ub, best_feasible_soln, num_tap_solved, max_level_f, front_to_end=False, uncommon_number=uncommon_number, tot_child=tot_child, common_number=common_number)
             max_level_b = max(max_level_b, level_b)
+            len_b = len(sum(open_list_b.values(), []))
 
-        all_open_f = sum(open_list_f.values(), [])
-        all_open_b = sum(open_list_b.values(), [])
 
-        len_f = len(all_open_f)
-        len_b = len(all_open_b)
+        if (len_f == 0 or len_b == 0) and best_feasible_soln.path is not None:
+            return best_feasible_soln.path, best_feasible_soln.g, num_tap_solved, tot_child, uncommon_number, common_number, num_purged
 
-        if (len_f == 0 or len_b == 0) and bfs.path is not None:
-            print('one of them is 0 length')
-            return bfs.path, bfs.cost, num_tap_solved, tot_child, uncommon_number, common_number, num_purged
-
-        if max(minimum_bf_n.f, minimum_ff_n.f) >= bfs.cost and bfs.path is not None:
-            print('min lb bigger than feasible upper bound')
-            return bfs.path, bfs.cost, num_tap_solved, tot_child, uncommon_number, common_number, num_purged
-
-        #stop after 2000 iterations
-        if iter_count >= 2000:
-            return bfs.path, bfs.cost, num_tap_solved, tot_child, uncommon_number, common_number, num_purged
-
-        fvals = [node.f for node in all_open_f]
+        fvals = [node.f for node in sum(open_list_f.values(), [])]
         minfind = np.argmin(fvals)
-        minimum_ff_n = all_open_f[minfind]
+        minimum_ff_n = sum(open_list_f.values(), [])[minfind]
 
-        bvals = [node.f for node in all_open_b]
-        minbind = np.argmin(bvals)
-        minimum_bf_n = all_open_b[minbind]
+        fvals = [node.f for node in sum(open_list_b.values(), [])]
+        minfind = np.argmin(fvals)
+        minimum_bf_n = sum(open_list_b.values(), [])[minfind]
 
-        #every 50 iter, update bounds
-        if iter_count % 50==0 and iter_count!=0:
-            print('----------')
-            print(f'search time elapsed: {(time.time() - search_timer)/60}')
-            print(f'max_level_f: {max_level_f}, max_level_b: {max_level_b}')
-            print('iteration: {}, best_found: {}'.format(iter_count, bfs.cost))
+        if max(minimum_bf_n.f, minimum_ff_n.f) >= best_feasible_soln.g and best_feasible_soln.path is not None:
+            return best_feasible_soln.path, best_feasible_soln.g, num_tap_solved, tot_child, uncommon_number, common_number, num_purged
 
-            global wb
-            global bb
-            global wb_update
-            global bb_update
+        if iter_count % 200==0 and iter_count!=0:
+            print('max_level_f: ', max_level_f)
+            print('max_level_b: ', max_level_b)
 
-            wb = deepcopy(wb_update)
-            bb = deepcopy(bb_update)
-            for k,v in open_list_f.items():
-                for a_node in v:
-                    _, _ = set_bounds_bif(a_node, open_list_b, front_to_end=False, end_node=end_node, bfs=bfs,uncommon_number=uncommon_number, common_number=common_number)
-
-                    a_node.f = a_node.lb
-
-            for k, v in open_list_b.items():
-                for a_node in v:
-
-                    _, _ = set_bounds_bib(a_node, open_list_f, front_to_end=False, start_node=start_node,
-                                          bfs=bfs,
-                                          uncommon_number=uncommon_number,
-                                          common_number=common_number)
-                    a_node.f = a_node.lb
-
-        #every 100 iters get feasible solution
-        if iter_count % 100==0 and iter_count !=0:
-
+            #### Get feasible solution between top 3 nodes on each front from one to another totaling 9 feasible solution
+            #### Update feasible solution if necessary
+            #### Complete the sequence with the remaining links doing a greedy search method - not lazy greedy
             if get_feas:
                 #fw
                 # accrued = minimum_ff_n.realized
@@ -1136,18 +1011,7 @@ def search(start_node, end_node, bfs, beam_search=False, beam_k=None, get_feas=T
                         after_fix_tstt = solve_UE(net=test_net)
 
                         diff = after_ - after_fix_tstt
-                        new_bb[link] = diff
-
-
-                        if wb_update[link] > diff:
-                            wb_update[link] = diff
-                        if bb_update[link] < diff:
-                            bb_update[link] = diff
-
-                        if wb[link] > diff:
-                            wb[link] = diff
-                        if bb[link] < diff:
-                            bb[link] = diff
+                        new_bb[link] = after_ - after_fix_tstt
 
                         new_tstts.append(after_fix_tstt)
 
@@ -1171,10 +1035,14 @@ def search(start_node, end_node, bfs, beam_search=False, beam_k=None, get_feas=T
 
                 net = deepcopy(net_after)
                 bound, _, _ = eval_sequence(net, path, after_eq_tstt, before_eq_tstt, damaged_dict=damaged_dict)
-                if bound < bfs.cost:
+                if bound < best_feasible_soln.g:
 
-                    bfs.cost = bound
-                    bfs.path = path
+                    best_feasible_soln.g = bound
+                    best_feasible_soln.path = path
+
+                    if best_feasible_soln.g < best_ub:
+                        best_ub = best_feasible_soln.g
+
 
                 #bw:
                 # idea: start nothing til before!
@@ -1191,8 +1059,7 @@ def search(start_node, end_node, bfs, beam_search=False, beam_k=None, get_feas=T
                 decoy_dd = deepcopy(damaged_dict)
 
                 for visited_links in minimum_bf_n.visited:
-                    del decoy_dd[
-                        visited_links]
+                    del decoy_dd[visited_links]
 
                 path = []
                 new_bb = {}
@@ -1210,17 +1077,7 @@ def search(start_node, end_node, bfs, beam_search=False, beam_k=None, get_feas=T
                         after_fix_tstt = solve_UE(net=test_net)
 
                         diff = after_ - after_fix_tstt
-                        new_bb[link] = diff
-
-                        if wb_update[link] > diff:
-                            wb_update[link] = diff
-                        if bb_update[link] < diff:
-                            bb_update[link] = diff
-
-                        if wb[link] > diff:
-                            wb[link] = diff
-                        if bb[link] < diff:
-                            bb[link] = diff
+                        new_bb[link] = after_ - after_fix_tstt
 
                         new_tstts.append(after_fix_tstt)
 
@@ -1247,26 +1104,59 @@ def search(start_node, end_node, bfs, beam_search=False, beam_k=None, get_feas=T
                 path.extend(minimum_bf_n.path[::-1])
                 net = deepcopy(net_after)
                 bound, _, _ = eval_sequence(net, path, after_eq_tstt, before_eq_tstt, damaged_dict=damaged_dict)
+                if bound < best_feasible_soln.g:
 
-                if bound < bfs.cost:
+                    best_feasible_soln.g = bound
+                    best_feasible_soln.path = path
 
-                    bfs.cost = bound
-                    bfs.path = path
+                    if best_feasible_soln.g < best_ub:
+                        best_ub = best_feasible_soln.g
 
-        #once explored 300 nodes in one front, start purge
-        if iter_count >= 200 and iter_count % 50 == 0 and iter_count != 0:
-            if (len_f >= 250 or len_b >= 250) or (f_activated or b_activated):
-            # if iter_count % 10 == 0:
+        if iter_count >= 2000:
+            return best_feasible_soln.path, best_feasible_soln.g, num_tap_solved, tot_child, uncommon_number, common_number, num_purged
+
+        # if max_level_b >= int(0.10*len(damaged_dict)) or max_level_f >= int(0.10*len(damaged_dict)):
+        len_f, len_b = 0, 0
+
+        for a_key in open_list_f.keys():
+            len_f += len(open_list_f[a_key])
+        for a_key in open_list_b.keys():
+            len_b += len(open_list_b[a_key])
+
+        if len_f >= 400 or len_b >= 400:
+
+            if iter_count % 10 == 0:
+
                 if beam_search:
-                    open_list_b, open_list_f, num_purged, f_activated, b_activated, closed_list_f, closed_list_b = purge(
-                        open_list_b, open_list_f, beam_k, num_purged, len_f, len_b, closed_list_f, closed_list_b, f_activated, b_activated, minimum_ff_n, minimum_bf_n, iter_count)
+                    open_list_b, open_list_f, num_purged = purge(
+                        open_list_b, open_list_f,
+                        max_level_f, max_level_b, beam_k, num_purged, len_f, len_b)
 
-    #check in case something weitd happened
-    if len(bfs.path) != len(damaged_links):
+        if iter_count % 100 == 0:
+            print('iteration: {}, best_found: {}'.format(iter_count, best_feasible_soln.g))
+        # if iter_count % 25 == 0:
+        #
+        #     if kf < kb:
+        #         uncommon_number, common_number = set_bounds_bif(minfnode, open_list_b, end_node, front_to_end=True, best_feasible_soln=best_feasible_soln, uncommon_number=uncommon_number, common_number=common_number, get_feas=True)
+        #     else:
+        #         uncommon_number, common_number = set_bounds_bib(minbnode, open_list_f, start_node, front_to_end=True, best_feasible_soln=best_feasible_soln, uncommon_number=uncommon_number, common_number=common_number, get_feas=True)
+        # #
+        # if best_feasible_soln.g < best_ub:
+        #    best_ub = best_feasible_soln.g
+        #    print('new_best:', best_ub)
+
+        # bar.update(iter_count)
+    if best_feasible_soln.path is None:
+        print('{} is {}'.format('bestpath', 'none'))
+        pdb.set_trace()
+
+    if len(best_feasible_soln.path) != len(damaged_links):
         print('{} is not {}'.format('bestpath', 'full length'))
         pdb.set_trace()
 
-    return bfs.path, bfs.cost, num_tap_solved, tot_child, uncommon_number, common_number, num_purged
+    return best_feasible_soln.path, best_feasible_soln.g, num_tap_solved, tot_child, uncommon_number, common_number, num_purged
+
+
 
 def worst_benefit(before, links_to_remove, before_eq_tstt, relax=False, bsearch=False, ext_name=''):
 
@@ -1288,7 +1178,7 @@ def worst_benefit(before, links_to_remove, before_eq_tstt, relax=False, bsearch=
             test_net.not_fixed = set(not_fixed)
 
             tstt = solve_UE(net=test_net, eval_seq=True)
-            global memory
+
             memory[frozenset(test_net.not_fixed)] = tstt
             # if tstt - before_eq_tstt <0 :
             #     pdb.set_trace()
@@ -1301,6 +1191,7 @@ def worst_benefit(before, links_to_remove, before_eq_tstt, relax=False, bsearch=
         wb = load(fname)
 
     return wb
+
 
 def best_benefit(after, links_to_remove, after_eq_tstt, relax=False, bsearch=False, ext_name=''):
 
@@ -1325,14 +1216,14 @@ def best_benefit(after, links_to_remove, after_eq_tstt, relax=False, bsearch=Fal
             not_fixed = set(to_visit).difference(set(added))
             test_net.not_fixed = set(not_fixed)
             tstt_after = solve_UE(net=test_net, eval_seq=True)
-            global memory
+
             memory[frozenset(test_net.not_fixed)] = tstt_after
 
             # seq_list.append(Node(link_id=link, parent=None, net=test_net, tstt_after=tstt_after,
             # tstt_before=after_eq_tstt, level=1, damaged_dict=damaged_dict))
             # if after_eq_tstt - tstt_after < 0 :
             #     pdb.set_trace()
-            bb[link] = after_eq_tstt - tstt_after
+            bb[link] = max(after_eq_tstt - tstt_after, 0)
 
             # print(tstt_after)
             # print(link, bb[link])
@@ -1344,6 +1235,7 @@ def best_benefit(after, links_to_remove, after_eq_tstt, relax=False, bsearch=Fal
         # seq_list = load('seq_list' + SNAME)
 
     return bb, elapsed
+
 
 def state_after(damaged_links, save_dir, relax=False, real=False, bsearch=False, ext_name=''):
     if relax:
@@ -1360,7 +1252,7 @@ def state_after(damaged_links, save_dir, relax=False, real=False, bsearch=False,
         net_after = create_network(NETFILE, TRIPFILE)
         net_after.not_fixed = set(damaged_links)
         after_eq_tstt = solve_UE(net=net_after, eval_seq=True, wu=False)
-        global memory
+
         memory[frozenset(net_after.not_fixed)] = after_eq_tstt
         elapsed = time.time() - start
         save(fname, net_after)
@@ -1373,6 +1265,7 @@ def state_after(damaged_links, save_dir, relax=False, real=False, bsearch=False,
 
     shutil.copy('batch0.bin', 'after/batch0.bin')
     return net_after, after_eq_tstt
+
 
 def state_before(damaged_links, save_dir, relax=False, real=False, bsearch=False, ext_name=''):
     if relax:
@@ -1390,7 +1283,6 @@ def state_before(damaged_links, save_dir, relax=False, real=False, bsearch=False
         net_before.not_fixed = set([])
 
         before_eq_tstt = solve_UE(net=net_before, eval_seq=True, wu=False, flows=True)
-        global memory
         memory[frozenset(net_before.not_fixed)] = before_eq_tstt
         elapsed = time.time() - start
 
@@ -1405,6 +1297,7 @@ def state_before(damaged_links, save_dir, relax=False, real=False, bsearch=False
     shutil.copy('batch0.bin', 'before/batch0.bin')
     return net_before, before_eq_tstt
 
+
 def safety(wb, bb):
     swapped_links = {}
     for a_link in wb:
@@ -1414,6 +1307,7 @@ def safety(wb, bb):
             wb[a_link] = worst
             swapped_links[a_link] = bb[a_link] - wb[a_link]
     return wb, bb, swapped_links
+
 
 def eval_state(state, after, damaged_links):
 
@@ -1427,10 +1321,10 @@ def eval_state(state, after, damaged_links):
     test_net.not_fixed = set(not_fixed)
 
     tstt_after = solve_UE(net=test_net)
-    global memory
     memory[frozenset(test_net.not_fixed)] = tstt_after
 
     return tstt_after
+
 
 def preprocessing(damaged_links, net_after):
 
@@ -1547,6 +1441,7 @@ def preprocessing(damaged_links, net_after):
     # pdb.set_trace()
     return model, meany, stdy
 
+
 def importance_factor_solution(net_before, after_eq_tstt, before_eq_tstt, time_net_before):
     start = time.time()
     tap_solved = 0
@@ -1570,6 +1465,9 @@ def importance_factor_solution(net_before, after_eq_tstt, before_eq_tstt, time_n
         path, if_importance = zip(*sorted_d)
         path = path[::-1]
         if_importance = if_importance[::-1]
+        print('importance factor path: ', path)
+        print('importances: ', if_importance)
+
 
         elapsed = time.time() - start + time_net_before
         bound, eval_taps, _ = eval_sequence(
@@ -1587,6 +1485,7 @@ def importance_factor_solution(net_before, after_eq_tstt, before_eq_tstt, time_n
         elapsed = load(fname + '_elapsed')
 
     return bound, path, elapsed, tap_solved
+
 
 def brute_force(net_after, after_eq_tstt, before_eq_tstt, is_approx=False):
     start = time.time()
@@ -1720,6 +1619,25 @@ def lazy_greedy_heuristic():
     bound, eval_taps, _ = eval_sequence(net_b, lzg_order, a_eq_tstt, b_eq_tstt, damaged_dict=damaged_dict)
     tap_solved = len(damaged_dict)
 
+
+
+    # start = time.time()
+    # ordered_days = []
+    # orderedb_benefits = []
+    #
+    # sorted_d = sorted(damaged_dict.items(), key=lambda x: x[1])
+    # for key, value in sorted_d:
+    #     ordered_days.append(value)
+    #     orderedb_benefits.append(bb[key])
+    #
+    # ob, od, lzg_order = orderlists(orderedb_benefits, ordered_days, rem_keys=sorted_d)
+    # lzg_order = [i[0] for i in lzg_order]
+    #
+    # tap_solved = len(damaged_dict)
+    # elapsed = time.time() - start + time_net_before + bb_time
+    #
+    # bound, eval_taps, _ = eval_sequence(net_after, lzg_order, after_eq_tstt, before_eq_tstt,
+    #                                     damaged_dict=damaged_dict)
     fname = save_dir + '/layzgreedy_solution'
     save(fname + '_obj', bound)
     save(fname + '_path', lzg_order)
@@ -1768,12 +1686,10 @@ def greedy_heuristic(net_after, after_eq_tstt, before_eq_tstt, time_net_before, 
                 diff = after_ - after_fix_tstt
                 new_bb[link] = after_ - after_fix_tstt
 
-                global wb_update
-                global bb_update
-                if wb_update[link] > diff:
-                    wb_update[link] = diff
-                if bb_update[link] < diff:
-                    bb_update[link] = diff
+                if wb[link] > diff:
+                    wb[link] = diff
+                if bb[link] < diff:
+                    bb[link] = diff
 
                 # remaining = diff * \
                 #     (tot_days - damaged_dict[link])
@@ -1821,6 +1737,82 @@ def greedy_heuristic(net_after, after_eq_tstt, before_eq_tstt, time_net_before, 
         elapsed = load(fname + '_elapsed')
 
     return bound, path, elapsed, tap_solved
+
+
+
+def greedy_heuristic_old(net_after, after_eq_tstt, before_eq_tstt, time_net_before, time_net_after):
+    start = time.time()
+
+    tap_solved = 0
+
+    fname = net_after.save_dir + '/greedy_solution'
+
+    if not os.path.exists(fname + extension):
+        print('Finding the greedy_solution ...')
+        tap_solved = 0
+
+        tot_days = sum(damaged_dict.values())
+        damaged_links = [link for link in damaged_dict.keys()]
+
+        eligible_to_add = damaged_links
+
+        test_net = deepcopy(net_after)
+        after_ = after_eq_tstt
+
+        path = []
+        for i in range(len(damaged_links)):
+            improvements = []
+            new_tstts = []
+            for link in eligible_to_add:
+
+                added = [link]
+
+                not_fixed = set(eligible_to_add).difference(set(added))
+                test_net.not_fixed = set(not_fixed)
+
+                after_fix_tstt = solve_UE(net=test_net)
+                tap_solved += 1
+
+                diff = after_ - after_fix_tstt
+                if wb[link] > diff:
+                    wb[link] = diff
+                if bb[link] < diff:
+                    bb[link] = diff
+
+                remaining = diff * \
+                    (tot_days - damaged_dict[link])
+
+                improvements.append(remaining)
+                new_tstts.append(after_fix_tstt)
+
+            min_index = np.argmax(improvements)
+            link_to_add = eligible_to_add[min_index]
+            path.append(link_to_add)
+            after_ = new_tstts[min_index]
+            eligible_to_add.remove(link_to_add)
+            tot_days -= damaged_dict[link_to_add]
+
+        net = deepcopy(net_after)
+
+        elapsed = time.time() - start + time_net_before + time_net_after
+
+        bound, _, _ = eval_sequence(net, path, after_eq_tstt, before_eq_tstt, damaged_dict=damaged_dict)
+
+        save(fname + '_obj', bound)
+        save(fname + '_path', path)
+        save(fname + '_elapsed', elapsed)
+        save(fname + '_num_tap', tap_solved)
+    else:
+        bound = load(fname + '_obj')
+        path = load(fname + '_path')
+        tap_solved = load(fname + '_num_tap')
+        elapsed = load(fname + '_elapsed')
+
+    return bound, path, elapsed, tap_solved
+
+
+def local_search(greedy_path):
+    pass
 
 def get_wb(damaged_links, save_dir, approx, relax=False, bsearch=False, ext_name=''):
     net_before, before_eq_tstt, time_net_before = state_before(damaged_links, save_dir, real=True, relax=relax, bsearch=bsearch, ext_name=ext_name)
@@ -1870,6 +1862,7 @@ def get_wb(damaged_links, save_dir, approx, relax=False, bsearch=False, ext_name
 
     return wb, bb, start_node, end_node, net_after, net_before, after_eq_tstt, before_eq_tstt, time_net_before, time_net_after, bb_time, swapped_links
 
+
 if __name__ == '__main__':
 
     net_name = args.net_name
@@ -1884,15 +1877,12 @@ if __name__ == '__main__':
     strength = args.strength
     full = args.full
     rand_gen = args.random
-    location_based = args.loc
     opt = True
 
     NETWORK = os.path.join(FOLDER, net_name)
     JSONFILE = os.path.join(NETWORK, net_name.lower() + '.geojson')
     NETFILE = os.path.join(NETWORK, net_name + "_net.tntp")
     TRIPFILE = os.path.join(NETWORK, net_name + "_trips.tntp")
-
-
 
     SAVED_FOLDER_NAME = "saved"
     PROJECT_ROOT_DIR = "."
@@ -1903,15 +1893,15 @@ if __name__ == '__main__':
     os.makedirs(NETWORK_DIR, exist_ok=True)
 
 
+
+
     if graphing:
         # get_common_numbers()
         get_tables(NETWORK_DIR)
     else:
         if rand_gen:
 
-            #change this back to range 0,reps
             for rep in range(reps):
-                print(num_broken)
                 memory = {}
 
                 net = create_network(NETFILE, TRIPFILE)
@@ -1977,122 +1967,17 @@ if __name__ == '__main__':
                 damaged_links = []
                 decoy = deepcopy(all_links)
                 i = 0
-
-                dG = deepcopy(G)
-                prev_dG = deepcopy(G)
-                del G
-
-                if location_based:
-                    import geopy.distance
-
-                    if NETWORK.find('SiouxFalls') >= 0:
-                        nodetntp = pd.read_csv(os.path.join(NETWORK, net_name + "_node.tntp"), 'r+', delimiter='\t')
-                        coord_dict = {}
-
-                        for index, row in nodetntp.iterrows():
-                            lon = row['X']
-                            lat = row['Y']
-                            coord_dict[row['Node']] = (lon, lat)
-
-                    if NETWORK.find('Anaheim') >= 0:
-                        nodetntp = pd.read_json(os.path.join(NETWORK, 'anaheim_nodes.geojson'))
-                        coord_dict = {}
-
-                        for index, row in nodetntp.iterrows():
-                            coord_dict[row['features']['properties']['id']] = row['features']['geometry']['coordinates']
-
-                    #pick a center link at random:
-                    nodedecoy = deepcopy(list(netg.node.keys()))
-                    center_node = np.random.choice(nodedecoy, 1, replace=False)[0]
-
-                    nodedecoy.remove(center_node)
-                    #find distances from center node:
-                    dist_dict = {}
-
-                    for anode in nodedecoy:
-                        # if NETWORK.find('SiouxFalls') >= 0:
-                        distance = np.linalg.norm(np.array(coord_dict[center_node]) - np.array(coord_dict[anode]))
-                        # else:
-                        #     distance = geopy.distance.distance(coord_dict[center_node], coord_dict[anode]).km
-
-                        dist_dict[anode] = distance
-
-
-                    #sort dist_dict with distances
-                    sorted_dist = sorted(dist_dict.items(), key=operator.itemgetter(1))
-                    all_nodes = [nodes[0] for nodes in sorted_dist]
-                    distances = [nodes[1] for nodes in sorted_dist]
-
-                    selected_nodes = [center_node]
-
-                    decoy = deepcopy(all_nodes)
-
-                    i = 0
-                    while i < int(num_broken/2)+1:
-                    # while i < int(num_broken):
-
-                        another_node = random.choices(decoy, np.exp(np.sqrt(1.0/np.array(distances))), k=1)[0]
-
-                        idx = decoy.index(another_node)
-                        del distances[idx]
-                        decoy.remove(another_node)
-                        selected_nodes.append(another_node)
-                        i += 1
-                    print(selected_nodes)
-                    #create linkset
-                    linkset = []
-                    for anode in selected_nodes:
-                        links_rev = netg.node[anode].reverseStar
-                        links_fw = netg.node[anode].forwardStar
-
-                        for alink in links_rev:
-                            if alink not in linkset:
-                                linkset.append(alink)
-                        for alink in links_fw:
-                            if alink not in linkset:
-                                linkset.append(alink)
-
-                    cop_linkset = deepcopy(linkset)
-                    i = 0
-
-                    flow_on_links = []
-                    for ij in linkset:
-                        flow_on_links.append(netflows[ij])
+                if -1 == -1:
+                    dG = deepcopy(G)
+                    prev_dG = deepcopy(G)
+                    del G
 
                     while i < int(num_broken):
-                        curlen = len(linkset)
-
-                        # ij = random.choices(linkset, weights=np.exp(np.power(np.arange(1,curlen+1)[::-1], 1.75/3.0)), k=1)[0]
-                        ij = random.choices(linkset, weights=np.exp(np.power(flow_on_links, 1/3.0)), k=1)[0]
-
-                        u = netg.link[ij].tail
-                        v = netg.link[ij].head
-                        dG.remove_edge(u, v)
-
-                        all_reachable = True
-                        j = 0
-                        for od in netg.ODpair.values():
-                            if not nx.has_path(dG, od.origin, od.destination):
-                                all_reachable = False
-                                dG = deepcopy(prev_dG)
-                                break
-
-                        if all_reachable:
-                            i += 1
-                            damaged_links.append(ij)
-                            prev_dG = deepcopy(dG)
-                            ind_ij = linkset.index(ij)
-                            del flow_on_links[ind_ij]
-                            linkset.remove(ij)
-
-                else:
-
-                    weights = flow_on_links
-
-                    while i < int(num_broken):
+                        # ij = np.random.choice(decoy, 1, replace=False)[0]
                         curlen = len(decoy)
-                        # ij = random.choices(decoy, weights=np.exp(np.cbrt(weights)), k=1)[0]
-                        ij = random.choices(decoy, weights=np.exp(np.power(weights, 1/3.0)), k=1)[0]
+
+                        weights = flow_on_links
+                        ij = random.choices(decoy, weights, k=1)[0]
 
                         u = netg.link[ij].tail
                         v = netg.link[ij].head
@@ -2114,8 +1999,56 @@ if __name__ == '__main__':
                             del weights[ind_ij]
                             decoy.remove(ij)
 
+                        print(i)
+
+                #     i = 0
+                #     while True:
+                #         ijs = np.random.choice(decoy, num_broken, replace=False)
+                #         random.choices(population = decoy,weights = [0.2, 0.2, 0.6],k=num_broken)
+                #         for ij in ijs:
+                #             u = netg.link[ij].tail
+                #             v = netg.link[ij].head
+                #             dG.remove_edge(u, v)
+                #
+                #         all_reachable = True
+                #         odc = 0
+                #         print(i)
+                #         if i > 10:
+                #             break
+                #         for od in netg.ODpair.values():
+                #             odc += 1
+                #             if odc > 500000:
+                #                 break
+                #             if not nx.has_path(dG, od.origin, od.destination):
+                #                 all_reachable = False
+                #                 dG = deepcopy(prev_dG)
+                #                 break
+                #
+                #         i += 1
+                #         if all_reachable:
+                #             break
+                #
+                #
+                #     del netg
+                #     del dG
+                #     del prev_dG
+                #     damaged_links = ijs
+                else:
+                    while i < int(num_broken):
+                        ij = np.random.choice(decoy, 1, replace=False)[0]
+                        damaged_links.append(ij)
+                        i += 1
                 print('damaged_links are created:', damaged_links)
 
+
+                for od in netg.ODpair.values():
+                    if not nx.has_path(dG, od.origin, od.destination):
+                        all_reachable = False
+                        dG = deepcopy(prev_dG)
+                        break
+                print('all_reachable', all_reachable)
+
+                # damaged_links = np.random.choice(all_links, num_broken, replace=False)
                 damaged_dict = {}
                 net.link = {}
 
@@ -2143,38 +2076,32 @@ if __name__ == '__main__':
                                  "," + str(data[1]).strip() + ')'
 
                         net.link[linkID] = {}
-                        net.link[linkID]['length-cap'] = float(data[2]) * np.cbrt(float(data[3]))
+                        net.link[linkID]['length-cap'] = float(data[3])*float(data[2])
 
                 len_links = [net.link[lnk]['length-cap'] for lnk in damaged_links]
 
                 for lnk in damaged_links:
-
-                    if net.link[lnk]['length-cap'] > np.quantile(len_links, 0.95):
-                        # damaged_dict[lnk] = np.random.uniform(84, 168, 1)[0]
-                        damaged_dict[lnk] = np.random.gamma(4*2, 7*2, 1)[0]
-
+                    if net.link[lnk]['length-cap'] > np.quantile(len_links, 0.9):
+                        damaged_dict[lnk] = np.random.uniform(63, 168, 1)[0]
 
                     elif net.link[lnk]['length-cap'] > np.quantile(len_links, 0.75):
-                        # damaged_dict[lnk] = np.random.uniform(35, 84, 1)[0]
-                        damaged_dict[lnk] = np.random.gamma(7*np.sqrt(2), 7*np.sqrt(2), 1)[0]
-
+                        damaged_dict[lnk] = np.random.uniform(35, 84, 1)[0]
 
                     elif net.link[lnk]['length-cap'] > np.quantile(len_links, 0.5):
-                        # damaged_dict[lnk] = np.random.uniform(28, 70, 1)[0]
-                        damaged_dict[lnk] = np.random.gamma(12, 7, 1)[0]
-
+                        damaged_dict[lnk] = np.random.uniform(28, 70, 1)[0]
 
                     elif net.link[lnk]['length-cap'] > np.quantile(len_links, 0.25):
-                        # damaged_dict[lnk] = np.random.uniform(21, 56, 1)[0]
-                        damaged_dict[lnk] = np.random.gamma(10, 7, 1)[0]
+                        damaged_dict[lnk] = np.random.uniform(21, 56, 1)[0]
 
                     else:
-                        # damaged_dict[lnk] = np.random.uniform(14, 28, 1)[0]
-                        damaged_dict[lnk] = np.random.gamma(6, 7, 1)[0]
+                        damaged_dict[lnk] = np.random.uniform(14, 28, 1)[0]
 
+                # pdb.set_trace()
+                # damaged_dict = load('saved/TransportationNetworks/Anaheim/16/7/damaged_dict')
 
+                #look at the damaged dict at the first run (good for us) then look at the run where its not good for us, see if its related to times?
+                print(rep)
 
-                print(f'experiment number: {rep}')
                 if len(damaged_links) > 6:
                     opt=False
 
@@ -2199,7 +2126,6 @@ if __name__ == '__main__':
                 damaged_links = damaged_dict.keys()
                 num_damaged = len(damaged_links)
 
-                print(damaged_dict)
                 save_dir = ULT_SCENARIO_REP_DIR
 
                 if before_after:
@@ -2216,8 +2142,6 @@ if __name__ == '__main__':
                     benefit_analysis_st = time.time()
                     wb, bb, start_node, end_node, net_after, net_before, after_eq_tstt, before_eq_tstt, time_net_before, time_net_after, bb_time, swapped_links = get_wb(damaged_links, save_dir, approx)
                     benefit_analysis_elapsed = time.time() - benefit_analysis_st
-
-
                     # approx solution
                     if approx:
                         model, meany, stdy = preprocessing(damaged_links, net_after)
@@ -2231,30 +2155,18 @@ if __name__ == '__main__':
                     lg_obj, lg_soln, lg_elapsed, lg_num_tap = lazy_greedy_heuristic()
                         #net_after, after_eq_tstt, before_eq_tstt, time_net_before, bb_time)
                     print('lazy_greedy_obj: ', lg_obj)
-                    bfs = BestSoln()
 
-
-
-                    wb_update = deepcopy(wb)
-                    bb_update = deepcopy(bb)
 
                     ### Get greedy solution ###
                     greedy_obj, greedy_soln, greedy_elapsed, greedy_num_tap = greedy_heuristic(
                         net_after, after_eq_tstt, before_eq_tstt, time_net_before, time_net_after)
                     print('greedy_obj: ', greedy_obj)
-                    print(greedy_soln)
-
-                    wb = deepcopy(wb_update)
-                    bb = deepcopy(bb_update)
-
-                    wb_orig = deepcopy(wb)
-                    bb_orig = deepcopy(bb)
 
                     ### Get feasible solution using importance factor ###
                     importance_obj, importance_soln, importance_elapsed, importance_num_tap = importance_factor_solution(
                         net_before, after_eq_tstt, before_eq_tstt, time_net_before)
 
-                    print(f'links with best/worse swapped: {swapped_links}')
+                    print(swapped_links)
                     # pdb.set_trace()
 
                     best_benefit_taps = num_damaged
@@ -2272,13 +2184,14 @@ if __name__ == '__main__':
                     if full:
                         print('full')
                         algo_num_tap = best_benefit_taps + worst_benefit_taps
+                        best_ub = lg_obj
 
                         fname = save_dir + '/algo_solution'
 
                         if not os.path.exists(fname + extension):
                             search_start = time.time()
                             algo_path, algo_obj, search_tap_solved, tot_child, uncommon_number, common_number, _ = search(
-                                start_node, end_node, bfs)
+                                start_node, end_node, best_ub, greedy_soln)
                             search_elapsed = time.time() - search_start + greedy_elapsed
 
                             net_after, after_eq_tstt = state_after(damaged_links, save_dir, real=True)
@@ -2310,28 +2223,23 @@ if __name__ == '__main__':
 
                     if beam_search:
 
-                        ks = [2]
+                        # ks = [2, int(len(damaged_links)/2)]
+                        ks = [2, int(len(damaged_links)*0.25), int(len(damaged_links)*0.5)]
+
+                        if len(damaged_links) >= 32:
+                            ks = [2, int(len(damaged_links) * 0.25)]
 
                         for k in ks:
                             if len(damaged_links) >= 32:
-                                # beamsearch with gap 1e-4
-                                print('===')
-
                                 fname = save_dir + '/r_algo_solution' + '_k' + str(k)
                                 ext_name = 'r_k' + str(k)
 
                                 del memory
                                 memory = deepcopy(memory1)
 
-                                wb = wb_orig
-                                bb = bb_orig
-                                wb_update = wb_orig
-                                bb_update = bb_orig
-
-                                bfs.path = None
-                                bfs.cost = np.inf
-
                                 r_algo_num_tap = best_benefit_taps + worst_benefit_taps
+                                best_bound = lg_obj
+                                best_path = lg_soln
 
                                 start_node.relax = True
                                 end_node.relax = True
@@ -2339,8 +2247,9 @@ if __name__ == '__main__':
                                 if not os.path.exists(fname + extension):
                                     search_start = time.time()
                                     r_algo_path, r_algo_obj, r_search_tap_solved, tot_childr, uncommon_numberr, common_numberr, num_purger = search(
-                                        start_node, end_node, bfs, beam_search=beam_search, beam_k=k)
-                                    search_elapsed = time.time() - search_start
+                                        start_node, end_node, best_bound, best_path, greedy_soln,  beam_search=beam_search,
+                                        beam_k=k)
+                                    search_elapsed = time.time() - search_start + greedy_elapsed
 
                                     net_after, after_eq_tstt = state_after(damaged_links, save_dir, real=True)
                                     net_before, before_eq_tstt = state_before(damaged_links, save_dir, real=True)
@@ -2351,7 +2260,7 @@ if __name__ == '__main__':
                                         first_net, r_algo_path, after_eq_tstt, before_eq_tstt,
                                         damaged_dict=damaged_dict)
 
-                                    r_algo_num_tap += r_search_tap_solved
+                                    r_algo_num_tap += r_search_tap_solved + greedy_num_tap
                                     r_algo_elapsed = search_elapsed + benefit_analysis_elapsed
 
                                     save(fname + '_obj', r_algo_obj)
@@ -2368,86 +2277,22 @@ if __name__ == '__main__':
                                     r_algo_path = load(fname + '_path')
                                     r_algo_num_tap = load(fname + '_num_tap')
                                     r_algo_elapsed = load(fname + '_elapsed')
-
-                                print(f'beam_search k: {k}, relaxed: True')
+                                print('------')
+                                print('k: ', k)
                                 print('obj: ', r_algo_obj)
+                                print('purged#: ', num_purger)
                             else:
-
-
-                                # beamsearch with gap 1e-4
-                                print('===')
-
-                                fname = save_dir + '/r_algo_solution' + '_k' + str(k)
-                                ext_name = 'r_k' + str(k)
-
-                                del memory
-                                memory = deepcopy(memory1)
-
-                                wb = wb_orig
-                                bb = bb_orig
-                                wb_update = wb_orig
-                                bb_update = bb_orig
-
-                                bfs.path = None
-                                bfs.cost = np.inf
-
-                                r_algo_num_tap = best_benefit_taps + worst_benefit_taps
-
-                                start_node.relax = True
-                                end_node.relax = True
-
-                                if not os.path.exists(fname + extension):
-                                    search_start = time.time()
-                                    r_algo_path, r_algo_obj, r_search_tap_solved, tot_childr, uncommon_numberr, common_numberr, num_purger = search(
-                                        start_node, end_node, bfs, beam_search=beam_search, beam_k=k)
-                                    search_elapsed = time.time() - search_start
-
-                                    net_after, after_eq_tstt = state_after(damaged_links, save_dir, real=True)
-                                    net_before, before_eq_tstt = state_before(damaged_links, save_dir, real=True)
-
-                                    first_net = deepcopy(net_after)
-                                    first_net.relax = False
-                                    r_algo_obj, _, _ = eval_sequence(
-                                        first_net, r_algo_path, after_eq_tstt, before_eq_tstt, damaged_dict=damaged_dict)
-
-                                    r_algo_num_tap += r_search_tap_solved
-                                    r_algo_elapsed = search_elapsed + benefit_analysis_elapsed
-
-                                    save(fname + '_obj', r_algo_obj)
-                                    save(fname + '_path', r_algo_path)
-                                    save(fname + '_num_tap', r_algo_num_tap)
-                                    save(fname + '_elapsed', r_algo_elapsed)
-                                    save(fname + '_totchild', tot_childr)
-                                    save(fname + '_uncommon', uncommon_numberr)
-                                    save(fname + '_common', common_numberr)
-                                    save(fname + '_num_purge', num_purger)
-
-                                else:
-                                    r_algo_obj = load(fname + '_obj')
-                                    r_algo_path = load(fname + '_path')
-                                    r_algo_num_tap = load(fname + '_num_tap')
-                                    r_algo_elapsed = load(fname + '_elapsed')
-
-                                print(f'beam_search k: {k}, relaxed: True')
-                                print('obj: ', r_algo_obj)
-
-                                print('===')
-
-                                del memory
-                                memory = deepcopy(memory1)
-
-                                wb = wb_orig
-                                bb = bb_orig
-                                wb_update = wb_orig
-                                bb_update = bb_orig
-
-                                bfs.path = None
-                                bfs.cost = np.inf
-
 
                                 fname = save_dir + '/beamsearch_solution' + '_k' + str(k)
                                 ext_name = '_k' + str(k)
+                                del memory
+                                memory = {}
+                                memory = deepcopy(memory1)
+
                                 beamsearch_num_tap = best_benefit_taps + worst_benefit_taps
+                                best_bound = lg_obj
+                                best_path = lg_soln
+
 
                                 start_node.relax = False
                                 end_node.relax = False
@@ -2455,8 +2300,8 @@ if __name__ == '__main__':
                                 if not os.path.exists(fname + extension):
                                     search_start = time.time()
                                     beamsearch_path, beamsearch_obj, beamsearch_tap_solved, tot_childbs, uncommon_numberbs, common_numberbs, num_purgebs = search(
-                                        start_node, end_node, bfs, beam_search=beam_search, beam_k=k)
-                                    search_elapsed = time.time() - search_start
+                                        start_node, end_node, best_bound, best_path, greedy_soln, beam_search=beam_search, beam_k=k)
+                                    search_elapsed = time.time() - search_start + greedy_elapsed
 
                                     net_after, after_eq_tstt = state_after(damaged_links, save_dir, real=True)
                                     net_before, before_eq_tstt = state_before(damaged_links, save_dir, real=True)
@@ -2464,10 +2309,9 @@ if __name__ == '__main__':
                                     first_net = deepcopy(net_after)
                                     first_net.relax = False
                                     beamsearch_obj, _, _ = eval_sequence(
-                                        first_net, beamsearch_path, after_eq_tstt, before_eq_tstt,
-                                        damaged_dict=damaged_dict)
+                                        first_net, beamsearch_path, after_eq_tstt, before_eq_tstt, damaged_dict=damaged_dict)
 
-                                    beamsearch_num_tap += beamsearch_tap_solved
+                                    beamsearch_num_tap += beamsearch_tap_solved + greedy_num_tap
                                     beamsearch_elapsed = search_elapsed + benefit_analysis_elapsed
 
                                     save(fname + '_obj', beamsearch_obj)
@@ -2485,11 +2329,58 @@ if __name__ == '__main__':
                                     beamsearch_num_tap = load(fname + '_num_tap')
                                     beamsearch_elapsed = load(fname + '_elapsed')
 
-                                print(f'beam_search k: {k}, relaxed: False')
-                                print('obj: ', beamsearch_obj)
-                                print('soln: ', beamsearch_path)
+                                # beamsearch with gap 1e-4
+
+                                fname = save_dir + '/r_algo_solution' + '_k' + str(k)
+                                ext_name = 'r_k' + str(k)
+
+                                del memory
+                                memory = deepcopy(memory1)
 
 
+                                r_algo_num_tap = best_benefit_taps + worst_benefit_taps
+                                best_bound = lg_obj
+                                best_path = lg_soln
+
+
+                                start_node.relax = True
+                                end_node.relax = True
+
+                                if not os.path.exists(fname + extension):
+                                    search_start = time.time()
+                                    r_algo_path, r_algo_obj, r_search_tap_solved, tot_childr, uncommon_numberr, common_numberr, num_purger = search(
+                                        start_node, end_node, best_bound, best_path, greedy_soln, beam_search=beam_search, beam_k=k)
+                                    search_elapsed = time.time() - search_start + greedy_elapsed
+
+                                    net_after, after_eq_tstt = state_after(damaged_links, save_dir, real=True)
+                                    net_before, before_eq_tstt = state_before(damaged_links, save_dir, real=True)
+
+                                    first_net = deepcopy(net_after)
+                                    first_net.relax = False
+                                    r_algo_obj, _, _ = eval_sequence(
+                                        first_net, r_algo_path, after_eq_tstt, before_eq_tstt, damaged_dict=damaged_dict)
+
+                                    r_algo_num_tap += r_search_tap_solved + greedy_num_tap
+                                    r_algo_elapsed = search_elapsed + benefit_analysis_elapsed
+
+                                    save(fname + '_obj', r_algo_obj)
+                                    save(fname + '_path', r_algo_path)
+                                    save(fname + '_num_tap', r_algo_num_tap)
+                                    save(fname + '_elapsed', r_algo_elapsed)
+                                    save(fname + '_totchild', tot_childr)
+                                    save(fname + '_uncommon', uncommon_numberr)
+                                    save(fname + '_common', common_numberr)
+                                    save(fname + '_num_purge', num_purger)
+
+                                else:
+                                    r_algo_obj = load(fname + '_obj')
+                                    r_algo_path = load(fname + '_path')
+                                    r_algo_num_tap = load(fname + '_num_tap')
+                                    r_algo_elapsed = load(fname + '_elapsed')
+                                print('------')
+                                print('k: ', k)
+                                print('obj: ', r_algo_obj)
+                                print('purged#: ', num_purger)
                     t = PrettyTable()
                     t.title = net_name + ' with ' + str(num_broken) + ' broken bridges'
                     t.field_names = ['Method', 'Objective', 'Run Time', '# TAP']
@@ -2498,12 +2389,13 @@ if __name__ == '__main__':
                     if approx:
                         t.add_row(['APPROX', approx_obj, r_algo_elapsed, r_algo_num_tap])
                     if beam_search:
-                        t.add_row(['BeamSearch_relaxed', r_algo_obj, r_algo_elapsed, r_algo_num_tap])
-                        if len(damaged_links) < 32:
-                            t.add_row(['BeamSearch', beamsearch_obj, beamsearch_elapsed, beamsearch_num_tap])
+                        t.add_row(['BeamSearch', r_algo_obj, r_algo_elapsed, r_algo_num_tap])
+
                     if full:
                         t.add_row(['ALGORITHM', algo_obj, algo_elapsed, algo_num_tap])
-                    t.add_row(['LG', lg_obj, lg_elapsed, lg_num_tap])
+                    if rand_gen:
+                        t.add_row(['BeamSearchLG', r_algo_obj,
+                                   r_algo_elapsed, r_algo_num_tap])
                     t.add_row(['GREEDY', greedy_obj, greedy_elapsed, greedy_num_tap])
                     t.add_row(['IMPORTANCE', importance_obj,
                                importance_elapsed, importance_num_tap])
@@ -2677,13 +2569,14 @@ if __name__ == '__main__':
                 if full:
                     print('full')
                     algo_num_tap = best_benefit_taps + worst_benefit_taps
+                    best_ub = importance_obj
 
                     fname = save_dir + '/algo_solution'
 
                     if not os.path.exists(fname + extension):
                         search_start = time.time()
                         algo_path, algo_obj, search_tap_solved, _, _, _, _ = search(
-                            start_node, end_node, bfs)
+                            start_node, end_node, best_ub)
                         search_elapsed = time.time() - search_start + importance_elapsed
 
                         net_after, after_eq_tstt = state_after(damaged_links, save_dir, real=True)
@@ -2709,7 +2602,49 @@ if __name__ == '__main__':
                         algo_num_tap = load(fname + '_num_tap')
                         algo_elapsed = load(fname + '_elapsed')
 
+                # print('Sequence found: {}, cost: {}, number of TAPs solved: {}, time elapsed: {}'.format(
+                #     algo_path, algo_obj, algo_num_tap, algo_elapsed))
 
+                # if not only_beam:
+                #     # algo with gap 1e-4
+                #     del memory
+                #     memory = {}
+
+                #     r_algo_num_tap = best_benefit_taps + worst_benefit_taps
+                #     best_bound = np.inf
+
+                #     fname = save_dir + '/r_algo_solution'
+
+                #     start_node.relax = True
+                #     end_node.relax = True
+
+                #     if not os.path.exists(fname + extension):
+                #         search_start = time.time()
+                #         r_algo_path, r_algo_obj, r_search_tap_solved = search(
+                #             start_node, end_node, best_bound)
+                #         search_elapsed = time.time() - search_start
+
+                #         net_after, after_eq_tstt = state_after(damaged_links, save_dir, real=True)
+                #         net_before, before_eq_tstt = state_before(damaged_links, save_dir, real=True)
+
+                #         first_net = deepcopy(net_after)
+                #         first_net.relax = False
+                #         r_algo_obj, _, _ = eval_sequence(
+                #             first_net, r_algo_path, after_eq_tstt, before_eq_tstt, damaged_dict=damaged_dict)
+
+
+                #         r_algo_num_tap += r_search_tap_solved
+                #         r_algo_elapsed = search_elapsed + benefit_analysis_elapsed
+
+                #         save(fname + '_obj', r_algo_obj)
+                #         save(fname + '_path', r_algo_path)
+                #         save(fname + '_num_tap', r_algo_num_tap)
+                #         save(fname + '_elapsed', r_algo_elapsed)
+                #     else:
+                #         r_algo_obj = load(fname + '_obj')
+                #         r_algo_path = load(fname + '_path')
+                #         r_algo_num_tap = load(fname + '_num_tap')
+                #         r_algo_elapsed = load(fname + '_elapsed')
 
 
                 if beam_search:
@@ -2717,8 +2652,6 @@ if __name__ == '__main__':
                     memory = {}
 
                     wb, bb, start_node, end_node, net_after, net_before, after_eq_tstt, before_eq_tstt, benefit_analysis_st = get_wb(damaged_links, save_dir, approx, relax=False, bsearch=True)
-                    wb_update = deepcopy(wb)
-                    bb_update = deepcopy(bb)
                     benefit_analysis_elapsed = time.time() - benefit_analysis_st
 
                     beamsearch_num_tap = best_benefit_taps + worst_benefit_taps

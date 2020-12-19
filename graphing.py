@@ -239,7 +239,7 @@ def get_common_numbers():
 
 
 def result_table(reps, file_path, broken, ks):
-    bs_param_2 = str(int(int(broken) / 2.0))
+    # bs_param_2 = str(int(int(broken) / 2.0))
 
     fullinc = True
     try:
@@ -247,24 +247,30 @@ def result_table(reps, file_path, broken, ks):
     except:
         fullinc = False
 
+    filenames = []
+    for k in ks[::-1]:
+        filenames.extend(['beamsearch_solution_k' + str(k),
+                 'r_algo_solution_k' + str(k)])
 
-
-    filenames = ['beamsearch_solution_k' + bs_param_2,
-                 'r_algo_solution_k' + bs_param_2,'beamsearch_solution_k2', 'r_algo_solution_k2',
-                 'greedy_solution', 'importance_factor_bound']
+    filenames.extend(['greedy_solution', 'layzgreedy_solution', 'importance_factor_bound'])
 
     if fullinc:
         filenames.insert(0,'algo_solution')
 
     heuristic2 = {}
     r_heuristic2 = {}
-    heuristic32 = {}
-    r_heuristic32 = {}
+    heuristic8 = {}
+    r_heuristic8 = {}
+    heuristic4 = {}
+    r_heuristic4 = {}
     greedy = {}
+    lgreedy = {}
     importance_factor = {}
     algo = {}
 
-    dict_list = [heuristic32, r_heuristic32, heuristic2, r_heuristic2, greedy, importance_factor]
+    # dict_list = [heuristic8, r_heuristic8, heuristic4, r_heuristic4, heuristic2, r_heuristic2, greedy, lgreedy, importance_factor]
+    dict_list = [heuristic2, r_heuristic2, greedy, lgreedy, importance_factor]
+
     if fullinc:
         dict_list.insert(0,algo)
 
@@ -312,9 +318,9 @@ def result_table(reps, file_path, broken, ks):
 
 
     else:
-        optimal = np.minimum(np.array(r_heuristic32['_obj']), np.minimum(np.array(r_heuristic2['_obj']), np.minimum(
-            np.minimum(np.array(heuristic2['_obj']), np.array(heuristic32['_obj'])), np.array(greedy['_obj']))))
-
+        # optimal = np.minimum(np.array(r_heuristic4['_obj']), np.minimum(np.array(heuristic4['_obj']), np.minimum(np.array(r_heuristic8['_obj']), np.minimum(np.array(r_heuristic2['_obj']), np.minimum(
+            # np.minimum(np.array(heuristic2['_obj']), np.array(heuristic8['_obj'])), np.array(greedy['_obj']))))))
+        optimal = np.minimum(np.array(r_heuristic2['_obj']),np.minimum(np.array(heuristic2['_obj']), np.array(greedy['_obj'])))
     if fullinc:
         optimal = np.minimum(optimal, np.array(algo['_obj']))
 
@@ -363,7 +369,6 @@ def result_table(reps, file_path, broken, ks):
     maxdiff = np.max((np.array(greedy['_obj']) - optimal)/optimal*100)
     argmaxdiff = np.argmax((np.array(greedy['_obj']) - optimal)/optimal*100)
 
-    # ddict = load(os.path.join(file_path, str(1)) + '/' + 'damaged_dict')
 
     percgap = maxdiff #/ optimal[argmaxdiff] * 100
 
@@ -377,18 +382,21 @@ def result_table(reps, file_path, broken, ks):
         numtapmax.append(np.array(algo['_num_tap'])[argmaxdiff])
         elapsedmax.append(np.array(algo['_elapsed'])[argmaxdiff])
 
-    percgapmax.append(np.max((np.array(heuristic32['_obj'])[argmaxdiff] - optimal[argmaxdiff]) / optimal[argmaxdiff] * 100))
-    numtapmax.append(np.array(heuristic32['_num_tap'])[argmaxdiff])
-    elapsedmax.append(np.array(heuristic32['_elapsed'])[argmaxdiff])
 
     percgapmax.append(np.max((np.array(heuristic2['_obj'])[argmaxdiff] - optimal[argmaxdiff]) / optimal[argmaxdiff] * 100))
     numtapmax.append(np.array(heuristic2['_num_tap'])[argmaxdiff])
     elapsedmax.append(np.array(heuristic2['_elapsed'])[argmaxdiff])
 
+    percgapmax.append(
+    np.max((np.array(r_heuristic2['_obj'])[argmaxdiff] - optimal[argmaxdiff]) / optimal[argmaxdiff] * 100))
+    numtapmax.append(np.array(r_heuristic2['_num_tap'])[argmaxdiff])
+    elapsedmax.append(np.array(r_heuristic2['_elapsed'])[argmaxdiff])
+
     percgapmax.append(percgap)
     numtapmax.append(np.array(greedy['_num_tap'])[argmaxdiff])
     elapsedmax.append(np.array(greedy['_elapsed'])[argmaxdiff])
 
+    print(argmaxdiff)
     percgapmax_scaled = percgapmax / max(percgapmax)
     numtapmax_scaled = numtapmax / max(numtapmax)
     elapsedmax_scaled = elapsedmax / max(elapsedmax)
@@ -404,11 +412,11 @@ def result_table(reps, file_path, broken, ks):
     # hatch='///', hatch='\\\\\\', hatch='xxx'
 
     plt.bar(r_obj, percgapmax_scaled, width=barWidth, edgecolor='#087efe', color='#087efe',
-            ecolor='#c6ccce', alpha=0.8, capsize=5, label='Rel Gap')
-    plt.bar(r_tap, numtapmax_scaled, width=barWidth, edgecolor='#b7fe00', color='#b7fe00',
-            ecolor='#c6ccce', alpha=0.8, capsize=5, label='Tap Solved')
-    plt.bar(r_elapsed, elapsedmax_scaled, width=barWidth, edgecolor='#ff9700', color='#ff9700',
-            ecolor='#c6ccce', alpha=0.8, capsize=5, label='Time Elapsed (s)')
+            ecolor='#c6ccce', alpha=0.8, capsize=5, label='Rel Gap', hatch='///')
+    plt.bar(r_tap, numtapmax_scaled, width=barWidth, edgecolor='#00b33c', color='#00b33c',
+            ecolor='#c6ccce', alpha=0.8, capsize=5, label='Tap Solved', hatch='\\\\\\')
+    plt.bar(r_elapsed, elapsedmax_scaled, width=barWidth, edgecolor='#FF4500', color='#FF4500',
+            ecolor='#c6ccce', alpha=0.8, capsize=5, label='Time Elapsed (s)', hatch='xxx')
 
     # tap_means_scaled[i]/2
     for i in range(len(percgapmax)):
@@ -424,7 +432,7 @@ def result_table(reps, file_path, broken, ks):
     if fullinc:
         xticks_str = ['MF', 'M' + bs_param_2, 'M2', 'GM']
     else:
-        xticks_str = ['M' + bs_param_2, 'M2', 'GM']
+        xticks_str = ['M2', 'RM2', 'GM']
 
 
 
@@ -455,18 +463,18 @@ def result_table(reps, file_path, broken, ks):
     # hatch='///', hatch='\\\\\\', hatch='xxx'
     if len(objs) <= 2:
         plt.bar(r_obj, obj_means_scaled, width=barWidth, edgecolor='#087efe', color='#087efe',
-                ecolor='#c6ccce', alpha=0.8, capsize=5, label='Avg Rel Gap')
+                ecolor='#c6ccce', alpha=0.8, capsize=5, label='Avg Rel Gap', hatch='///')
         plt.bar(r_tap, tap_means_scaled, width=barWidth, edgecolor='#b7fe00', color='#b7fe00',
-                ecolor='#c6ccce', alpha=0.8, capsize=5, label='Avg Tap Solved')
-        plt.bar(r_elapsed, elapsed_means_scaled, width=barWidth, edgecolor='#ff9700', color='#ff9700',
-                ecolor='#c6ccce', alpha=0.8, capsize=5, label='Avg Time Elapsed (s)')
+                ecolor='#c6ccce', alpha=0.8, capsize=5, label='Avg Tap Solved', hatch='\\\\\\')
+        plt.bar(r_elapsed, elapsed_means_scaled, width=barWidth, edgecolor='#ff9700', color='#FF4500',
+                ecolor='#c6ccce', alpha=0.8, capsize=5, label='Avg Time Elapsed (s)', hatch='xxx')
 
     else:
         plt.bar(r_obj, obj_means_scaled, width=barWidth, edgecolor='#087efe', color='#087efe',
                 ecolor='#c6ccce', alpha=0.8, yerr=obj_err_scaled, capsize=5, label='Avg Rel Gap')
-        plt.bar(r_tap, tap_means_scaled, width=barWidth, edgecolor='#b7fe00', color='#b7fe00',
+        plt.bar(r_tap, tap_means_scaled, width=barWidth, edgecolor='#00b33c', color='#00b33c',
                 ecolor='#c6ccce', alpha=0.8, yerr=tap_err_scaled, capsize=5, label='Avg Tap Solved')
-        plt.bar(r_elapsed, elapsed_means_scaled, width=barWidth, edgecolor='#ff9700', color='#ff9700',
+        plt.bar(r_elapsed, elapsed_means_scaled, width=barWidth, edgecolor='#FF4500', color='#FF4500',
                 ecolor='#c6ccce', alpha=0.8, yerr=elapsed_err_scaled, capsize=5, label='Avg Time Elapsed (s)')
 
     # tap_means_scaled[i]/2
@@ -482,7 +490,8 @@ def result_table(reps, file_path, broken, ks):
     if fullinc:
         xticks_str = ['MF', 'M' + bs_param_2, 'RM' + bs_param_2, 'M2', 'RM2', 'GM', 'IF']
     else:
-        xticks_str = ['M' + bs_param_2, 'RM' + bs_param_2, 'M2', 'RM2', 'GM', 'IF']
+        # xticks_str = ['M' + '8', 'RM' + '8', 'M' + '4', 'RM' + '4','M2', 'RM2', 'GM', 'LGM', 'IF']
+        xticks_str = ['M2', 'RM2', 'GM', 'LGM', 'IF']
 
     plt.xticks([(r + barWidth) for r in range(len(obj_means))],
                xticks_str, size=10)
@@ -502,47 +511,47 @@ def result_table(reps, file_path, broken, ks):
     save_fig(file_path, 'performance_graph_' +
              'w_bridge_' + str(broken), tight_layout=False)
 
-    columns = ('Avg Rel Gap', 'Delta', 'Avg Tap Solved',
-               'Delta', 'Avg Elapsed(s)', 'Delta')
-    rows = ['M2', 'RM2', 'M' + bs_param_2, 'RM' + bs_param_2, 'GM', 'IF']
-
-    plt.close()
-
-    fig, ax = plt.subplots()
-
-    cell_text = []
-    for row in range(len(data)):
-        cell_text.append(['%1.2f' % x + '%' if (i == 0 or i == 1)
-                          else '%1.2f' % x for i, x in enumerate(data[row])])
-
-    ax.axis('off')
-    ax.axis('tight')
-
-    # # Add a table at the bottom of the axes
-    the_table = ax.table(cellText=cell_text,
-                         rowLabels=rows,
-                         # rowColours=colors,
-                         colLabels=columns,
-                         loc='center')
-
-    if broken != 10:
-        txt = "# Broken Links: " + \
-              str(broken) + ". \n Averaged over: " + \
-              str(reps + 1) + ' different instances.'
-    else:
-        txt = "# Broken Links: " + str(broken) + ". \n Averaged over: " + str(
-            reps + 1) + ' different instances.\n Heuristic solution was taken as best - since not possible to solve to optimality'
-
-    plt.figtext(0.5, 0.01, txt, wrap=True,
-                horizontalalignment='center', fontsize=7)
-
-    save_fig(file_path, 'performance_table_' + 'w_bridge_' + str(broken))
+    # columns = ('Avg Rel Gap', 'Delta', 'Avg Tap Solved',
+    #            'Delta', 'Avg Elapsed(s)', 'Delta')
+    # rows = ['M2', 'RM2', 'M' + bs_param_2, 'RM' + bs_param_2, 'GM', 'IF']
+    #
+    # plt.close()
+    #
+    # fig, ax = plt.subplots()
+    #
+    # cell_text = []
+    # for row in range(len(data)):
+    #     cell_text.append(['%1.2f' % x + '%' if (i == 0 or i == 1)
+    #                       else '%1.2f' % x for i, x in enumerate(data[row])])
+    #
+    # ax.axis('off')
+    # ax.axis('tight')
+    #
+    # # # Add a table at the bottom of the axes
+    # the_table = ax.table(cellText=cell_text,
+    #                      rowLabels=rows,
+    #                      # rowColours=colors,
+    #                      colLabels=columns,
+    #                      loc='center')
+    #
+    # if broken != 10:
+    #     txt = "# Broken Links: " + \
+    #           str(broken) + ". \n Averaged over: " + \
+    #           str(reps + 1) + ' different instances.'
+    # else:
+    #     txt = "# Broken Links: " + str(broken) + ". \n Averaged over: " + str(
+    #         reps + 1) + ' different instances.\n Heuristic solution was taken as best - since not possible to solve to optimality'
+    #
+    # plt.figtext(0.5, 0.01, txt, wrap=True,
+    #             horizontalalignment='center', fontsize=7)
+    #
+    # save_fig(file_path, 'performance_table_' + 'w_bridge_' + str(broken))
 
 
 def result_sequence_graphs(rep, save_dir):
     path_pre = os.path.join(save_dir, str(rep)) + '/'
 
-    net_after = load(path_pre + 'net_after')
+    net_after = (path_pre + 'net_after')
     net_after.damaged_dict = load(path_pre + 'damaged_dict')
 
     if len(net_after.damaged_dict) >= 8:
@@ -626,13 +635,15 @@ def get_tables(directory):
         brokens = get_folders(SCENARIO_DIR)
     except:
         return
-    ks = [2,16,32]
+    ks = [2]
+    print(brokens)
     for broken in brokens:
-        if broken != '8':
+        if broken == 'prev':
             continue
 
         try:
             B_DIR = os.path.join(SCENARIO_DIR, broken)
+
         except:
             return
 
@@ -644,6 +655,7 @@ def get_tables(directory):
         reps = [int(i) for i in range(len(repetitions))]
         max_reps = max(reps)
         result_table(max_reps, B_DIR, broken, ks)
+        print(reps)
 
 
 def get_sequence_graphs(directory):
