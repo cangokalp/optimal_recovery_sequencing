@@ -873,25 +873,25 @@ def purge(open_list_b, open_list_f, beam_k, num_purged, len_f, len_b, closed_lis
 
                 if iter_num <= 500:
                     for a_node in closed_list_f[i]:
-                        if a_node.lb <= olf_min*1.1:
+                        if a_node.lb <= olf_min*1.025: #*1.1:
                             open_list_f[i].append(a_node)
                             removed_from_closed.append(a_node)
-                        elif a_node.ub <= olf_ub:
+                        elif a_node.ub*1.1 <= olf_ub:
                             open_list_f[i].append(a_node)
                             removed_from_closed.append(a_node)
 
                 elif iter_num <= 1000:
                     for a_node in closed_list_f[i]:
-                        if a_node.lb <= olf_min * 1.05:
+                        if a_node.lb <= olf_min * 1.01:
                             open_list_f[i].append(a_node)
                             removed_from_closed.append(a_node)
-                        elif a_node.ub*1.05 <= olf_ub:
-                            open_list_f[i].append(a_node)
-                            removed_from_closed.append(a_node)
+                        # elif a_node.ub*1.1 <= olf_ub:
+                        #     open_list_f[i].append(a_node)
+                        #     removed_from_closed.append(a_node)
 
                 elif iter_num <= 1500:
                     for a_node in closed_list_f[i]:
-                        if a_node.lb <= olf_min * 1.01:
+                        if a_node.lb <= olf_min: #* 1.01:
                             open_list_f[i].append(a_node)
                             removed_from_closed.append(a_node)
                 #         elif a_node.ub <= olf_ub:
@@ -949,23 +949,23 @@ def purge(open_list_b, open_list_f, beam_k, num_purged, len_f, len_b, closed_lis
 
                 if iter_num <= 500:
                     for a_node in closed_list_b[i]:
-                        if a_node.lb <= olb_min * 1.1:
+                        if a_node.lb <= olb_min * 1.025:
                             open_list_b[i].append(a_node)
                             removed_from_closed.append(a_node)
-                        elif a_node.ub <= olb_ub:
+                        elif a_node.ub*1.1 <= olb_ub:
                             open_list_b[i].append(a_node)
                             removed_from_closed.append(a_node)
                 elif iter_num <= 1000:
                     for a_node in closed_list_b[i]:
-                        if a_node.lb <= olb_min * 1.05:
+                        if a_node.lb <= olb_min * 1.01:
                             open_list_b[i].append(a_node)
                             removed_from_closed.append(a_node)
-                        elif a_node.ub*1.05 <= olb_ub:
-                            open_list_b[i].append(a_node)
-                            removed_from_closed.append(a_node)
+                        # elif a_node.ub*1.1 <= olb_ub:
+                        #     open_list_b[i].append(a_node)
+                        #     removed_from_closed.append(a_node)
                 elif iter_num <= 1500:
                     for a_node in closed_list_b[i]:
-                        if a_node.lb <= olb_min * 1.01:
+                        if a_node.lb <= olb_min :
                             open_list_b[i].append(a_node)
                             removed_from_closed.append(a_node)
                 #         elif a_node.ub <= olb_ub:
@@ -1062,7 +1062,7 @@ def search(start_node, end_node, bfs, beam_search=False, beam_k=None, get_feas=T
             return bfs.path, bfs.cost, num_tap_solved, tot_child, uncommon_number, common_number, num_purged
 
         #stop after 2000 iterations
-        if iter_count >= 2000:
+        if iter_count >= 1500:
             return bfs.path, bfs.cost, num_tap_solved, tot_child, uncommon_number, common_number, num_purged
 
         fvals = [node.f for node in all_open_f]
@@ -1103,7 +1103,7 @@ def search(start_node, end_node, bfs, beam_search=False, beam_k=None, get_feas=T
                     a_node.f = a_node.lb
 
         #every 100 iters get feasible solution
-        if iter_count % 100==0 and iter_count !=0:
+        if iter_count % 50==0 and iter_count !=0:
 
             if get_feas:
                 #fw
@@ -1910,7 +1910,7 @@ if __name__ == '__main__':
         if rand_gen:
 
             #change this back to range 0,reps
-            for rep in range(reps):
+            for rep in range(1,reps):
                 print(num_broken)
                 memory = {}
 
@@ -1981,7 +1981,7 @@ if __name__ == '__main__':
                 dG = deepcopy(G)
                 prev_dG = deepcopy(G)
                 del G
-
+                import math
                 if location_based:
                     import geopy.distance
 
@@ -2000,6 +2000,15 @@ if __name__ == '__main__':
 
                         for index, row in nodetntp.iterrows():
                             coord_dict[row['features']['properties']['id']] = row['features']['geometry']['coordinates']
+
+                    if NETWORK.find('Chicago-Sketch') >= 0:
+                        nodetntp = pd.read_csv(os.path.join(NETWORK, net_name + "_node.tntp"), 'r+', delimiter='\t')
+                        coord_dict = {}
+
+                        for index, row in nodetntp.iterrows():
+                            lon = row['X']
+                            lat = row['Y']
+                            coord_dict[row['node']] = (lon, lat)
 
                     #pick a center link at random:
                     nodedecoy = deepcopy(list(netg.node.keys()))
@@ -2028,10 +2037,9 @@ if __name__ == '__main__':
                     decoy = deepcopy(all_nodes)
 
                     i = 0
-                    while i < int(num_broken/2)+1:
-                    # while i < int(num_broken):
+                    while i <= int(math.floor(num_broken*2/3.0)):
 
-                        another_node = random.choices(decoy, np.exp(np.sqrt(1.0/np.array(distances))), k=1)[0]
+                        another_node = random.choices(decoy, np.exp(np.cbrt(1.0/np.array(distances))), k=1)[0]
 
                         idx = decoy.index(another_node)
                         del distances[idx]
@@ -2058,12 +2066,16 @@ if __name__ == '__main__':
                     flow_on_links = []
                     for ij in linkset:
                         flow_on_links.append(netflows[ij])
-
+                    safe = deepcopy(flow_on_links)
+                    fail = False
+                    iterno = 0
+                    dG_orig = deepcopy(dG)
                     while i < int(num_broken):
                         curlen = len(linkset)
-
-                        # ij = random.choices(linkset, weights=np.exp(np.power(np.arange(1,curlen+1)[::-1], 1.75/3.0)), k=1)[0]
-                        ij = random.choices(linkset, weights=np.exp(np.power(flow_on_links, 1/3.0)), k=1)[0]
+                        if not fail:
+                            ij = random.choices(linkset, weights=np.exp(np.power(flow_on_links, 1 / 3.0)), k=1)[0]
+                        else:
+                            ij = random.choices(linkset, weights=np.exp(np.power(flow_on_links, 1 / 4.0)), k=1)[0]
 
                         u = netg.link[ij].tail
                         v = netg.link[ij].head
@@ -2084,6 +2096,18 @@ if __name__ == '__main__':
                             ind_ij = linkset.index(ij)
                             del flow_on_links[ind_ij]
                             linkset.remove(ij)
+
+                        if iterno % 1000==0 and iterno!=0:
+                            print(damaged_links)
+                            damaged_links = []
+                            flow_on_links = safe
+                            linkset = cop_linkset
+                            i = 0
+                            fail = True
+                            iterno = 0
+                            dG = deepcopy(dG_orig)
+                            prev_dG = deepcopy(dG_orig)
+                        iterno +=1
 
                 else:
 

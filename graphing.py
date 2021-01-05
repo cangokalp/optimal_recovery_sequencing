@@ -238,8 +238,11 @@ def get_common_numbers():
 
 
 
-def result_table(reps, file_path, broken, ks):
+def result_table(reps, file_path, broken, ks, biginstance=False):
     # bs_param_2 = str(int(int(broken) / 2.0))
+    if int(broken) >= 32:
+        biginstance = True
+
 
     fullinc = True
     try:
@@ -249,8 +252,11 @@ def result_table(reps, file_path, broken, ks):
 
     filenames = []
     for k in ks[::-1]:
-        filenames.extend(['beamsearch_solution_k' + str(k),
-                 'r_algo_solution_k' + str(k)])
+        if not biginstance:
+            filenames.extend(['beamsearch_solution_k' + str(k),
+                              'r_algo_solution_k' + str(k)])
+        else:
+            filenames.extend(['r_algo_solution_k' + str(k)])
 
     filenames.extend(['greedy_solution', 'layzgreedy_solution', 'importance_factor_bound'])
 
@@ -259,17 +265,19 @@ def result_table(reps, file_path, broken, ks):
 
     heuristic2 = {}
     r_heuristic2 = {}
-    heuristic8 = {}
-    r_heuristic8 = {}
-    heuristic4 = {}
-    r_heuristic4 = {}
     greedy = {}
     lgreedy = {}
     importance_factor = {}
     algo = {}
 
-    # dict_list = [heuristic8, r_heuristic8, heuristic4, r_heuristic4, heuristic2, r_heuristic2, greedy, lgreedy, importance_factor]
-    dict_list = [heuristic2, r_heuristic2, greedy, lgreedy, importance_factor]
+
+
+
+    if biginstance:
+        dict_list = [r_heuristic2, greedy, lgreedy, importance_factor]
+
+    else:
+        dict_list = [heuristic2, r_heuristic2, greedy, lgreedy, importance_factor]
 
     if fullinc:
         dict_list.insert(0,algo)
@@ -320,7 +328,12 @@ def result_table(reps, file_path, broken, ks):
     else:
         # optimal = np.minimum(np.array(r_heuristic4['_obj']), np.minimum(np.array(heuristic4['_obj']), np.minimum(np.array(r_heuristic8['_obj']), np.minimum(np.array(r_heuristic2['_obj']), np.minimum(
             # np.minimum(np.array(heuristic2['_obj']), np.array(heuristic8['_obj'])), np.array(greedy['_obj']))))))
-        optimal = np.minimum(np.array(r_heuristic2['_obj']),np.minimum(np.array(heuristic2['_obj']), np.array(greedy['_obj'])))
+        if biginstance:
+            pdb.set_trace()
+            optimal = np.minimum(np.array(r_heuristic2['_obj']), np.array(greedy['_obj']))
+
+        else:
+            optimal = np.minimum(np.array(r_heuristic2['_obj']),np.minimum(np.array(heuristic2['_obj']), np.array(greedy['_obj'])))
     if fullinc:
         optimal = np.minimum(optimal, np.array(algo['_obj']))
 
@@ -383,9 +396,10 @@ def result_table(reps, file_path, broken, ks):
         elapsedmax.append(np.array(algo['_elapsed'])[argmaxdiff])
 
 
-    percgapmax.append(np.max((np.array(heuristic2['_obj'])[argmaxdiff] - optimal[argmaxdiff]) / optimal[argmaxdiff] * 100))
-    numtapmax.append(np.array(heuristic2['_num_tap'])[argmaxdiff])
-    elapsedmax.append(np.array(heuristic2['_elapsed'])[argmaxdiff])
+    if not biginstance:
+        percgapmax.append(np.max((np.array(heuristic2['_obj'])[argmaxdiff] - optimal[argmaxdiff]) / optimal[argmaxdiff] * 100))
+        numtapmax.append(np.array(heuristic2['_num_tap'])[argmaxdiff])
+        elapsedmax.append(np.array(heuristic2['_elapsed'])[argmaxdiff])
 
     percgapmax.append(
     np.max((np.array(r_heuristic2['_obj'])[argmaxdiff] - optimal[argmaxdiff]) / optimal[argmaxdiff] * 100))
@@ -401,56 +415,56 @@ def result_table(reps, file_path, broken, ks):
     numtapmax_scaled = numtapmax / max(numtapmax)
     elapsedmax_scaled = elapsedmax / max(elapsedmax)
 
-    plt.figure(figsize=(10, 6))
-
-    barWidth = 0.2
-    r_obj = np.arange(len(percgapmax))
-    r_tap = [x + barWidth for x in r_obj]
-    r_elapsed = [x + 2 * barWidth for x in r_obj]
-
-    plt.rcParams["font.size"] = 8
-    # hatch='///', hatch='\\\\\\', hatch='xxx'
-
-    plt.bar(r_obj, percgapmax_scaled, width=barWidth, edgecolor='#087efe', color='#087efe',
-            ecolor='#c6ccce', alpha=0.8, capsize=5, label='Rel Gap', hatch='///')
-    plt.bar(r_tap, numtapmax_scaled, width=barWidth, edgecolor='#00b33c', color='#00b33c',
-            ecolor='#c6ccce', alpha=0.8, capsize=5, label='Tap Solved', hatch='\\\\\\')
-    plt.bar(r_elapsed, elapsedmax_scaled, width=barWidth, edgecolor='#FF4500', color='#FF4500',
-            ecolor='#c6ccce', alpha=0.8, capsize=5, label='Time Elapsed (s)', hatch='xxx')
-
-    # tap_means_scaled[i]/2
-    for i in range(len(percgapmax)):
-        plt.annotate('{0:1.1f}'.format(percgapmax[i]) + '%', (i, 0), textcoords='offset points', xytext=(
-            0, 20), ha='center', va='bottom', rotation=70, size=10)
-        plt.annotate('{0:1.1f}'.format(numtapmax[i]), (i + barWidth, 0), textcoords='offset points', xytext=(
-            0, 20), ha='center', va='bottom', rotation=70, size=10)
-        plt.annotate('{0:1.1f}'.format(elapsedmax[i]), (i + 2 * barWidth, 0), textcoords='offset points', xytext=(
-            0, 20), ha='center', va='bottom', rotation=70, size=10)
-
-    plt.ylabel('Normalized Metric Value', size=10)
-
-    if fullinc:
-        xticks_str = ['MF', 'M' + bs_param_2, 'M2', 'GM']
-    else:
-        xticks_str = ['M2', 'RM2', 'GM']
-
-
-
-    plt.xticks([(r + barWidth) for r in range(len(elapsedmax))],
-                   xticks_str, size=10)
-    # plt.title('Performance Comparison - ' + broken, fontsize=7)
-
-    txt = "# Broken Links: " + \
-          str(broken) + ".\n worst within: " + \
-          str(reps + 1) + ' different instances.'
-
-    # plt.figtext(0.5, 0.01, txt, wrap=True,
-    #             ha='center', va="bottom", fontsize=7)
-    plt.legend(fontsize=8)
-    save_fig(file_path, 'worst gap possible' +
-             'w_bridge_' + str(broken), tight_layout=False)
-
-    plt.close()
+    # plt.figure(figsize=(10, 6))
+    #
+    # barWidth = 0.2
+    # r_obj = np.arange(len(percgapmax))
+    # r_tap = [x + barWidth for x in r_obj]
+    # r_elapsed = [x + 2 * barWidth for x in r_obj]
+    #
+    # plt.rcParams["font.size"] = 8
+    # # hatch='///', hatch='\\\\\\', hatch='xxx'
+    #
+    # plt.bar(r_obj, percgapmax_scaled, width=barWidth, edgecolor='#087efe', color='#087efe',
+    #         ecolor='#c6ccce', alpha=0.8, capsize=5, label='Rel Gap', hatch='///')
+    # plt.bar(r_tap, numtapmax_scaled, width=barWidth, edgecolor='#00b33c', color='#00b33c',
+    #         ecolor='#c6ccce', alpha=0.8, capsize=5, label='Tap Solved', hatch='\\\\\\')
+    # plt.bar(r_elapsed, elapsedmax_scaled, width=barWidth, edgecolor='#FF4500', color='#FF4500',
+    #         ecolor='#c6ccce', alpha=0.8, capsize=5, label='Time Elapsed (s)', hatch='xxx')
+    #
+    # # tap_means_scaled[i]/2
+    # for i in range(len(percgapmax)):
+    #     plt.annotate('{0:1.1f}'.format(percgapmax[i]) + '%', (i, 0), textcoords='offset points', xytext=(
+    #         0, 20), ha='center', va='bottom', rotation=70, size=10)
+    #     plt.annotate('{0:1.1f}'.format(numtapmax[i]), (i + barWidth, 0), textcoords='offset points', xytext=(
+    #         0, 20), ha='center', va='bottom', rotation=70, size=10)
+    #     plt.annotate('{0:1.1f}'.format(elapsedmax[i]), (i + 2 * barWidth, 0), textcoords='offset points', xytext=(
+    #         0, 20), ha='center', va='bottom', rotation=70, size=10)
+    #
+    # plt.ylabel('Normalized Metric Value', size=10)
+    #
+    # if fullinc:
+    #     xticks_str = ['MF', 'M' + bs_param_2, 'M2', 'GM']
+    # else:
+    #     xticks_str = ['M2', 'RM2', 'GM']
+    #
+    #
+    #
+    # plt.xticks([(r + barWidth) for r in range(len(elapsedmax))],
+    #                xticks_str, size=10)
+    # # plt.title('Performance Comparison - ' + broken, fontsize=7)
+    #
+    # txt = "# Broken Links: " + \
+    #       str(broken) + ".\n worst within: " + \
+    #       str(reps + 1) + ' different instances.'
+    #
+    # # plt.figtext(0.5, 0.01, txt, wrap=True,
+    # #             ha='center', va="bottom", fontsize=7)
+    # plt.legend(fontsize=8)
+    # save_fig(file_path, 'worst gap possible' +
+    #          'w_bridge_' + str(broken), tight_layout=False)
+    #
+    # plt.close()
 
     plt.figure(figsize=(10, 6))
 
@@ -490,14 +504,16 @@ def result_table(reps, file_path, broken, ks):
     if fullinc:
         xticks_str = ['MF', 'M' + bs_param_2, 'RM' + bs_param_2, 'M2', 'RM2', 'GM', 'IF']
     else:
-        # xticks_str = ['M' + '8', 'RM' + '8', 'M' + '4', 'RM' + '4','M2', 'RM2', 'GM', 'LGM', 'IF']
-        xticks_str = ['M2', 'RM2', 'GM', 'LGM', 'IF']
+        if biginstance:
+            xticks_str = ['RM', 'GM', 'LGM', 'IF']
+        else:
+            xticks_str = ['M', 'RM', 'GM', 'LGM', 'IF']
 
     plt.xticks([(r + barWidth) for r in range(len(obj_means))],
                xticks_str, size=10)
 
 
-    # plt.title('Performance Comparison - ' + broken, fontsize=7)
+    plt.title(str(broken) + ' damaged links' , fontsize=10)
     if broken != 10:
         txt = "# Broken Links: " + \
               str(broken) + ".\n Averaged over: " + \
