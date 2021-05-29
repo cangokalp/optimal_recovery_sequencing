@@ -314,6 +314,13 @@ def result_table(reps, file_path, broken, ks, biginstance=False):
     tap_err = []
     elapsed_err = []
 
+    obj_range_above = []
+    obj_range_below = []
+    tap_range_above = []
+    tap_range_below = []
+    elapsed_range_above = []
+    elapsed_range_below = []
+
     percgapmax = []
     numtapmax = []
     elapsedmax = []
@@ -329,7 +336,7 @@ def result_table(reps, file_path, broken, ks, biginstance=False):
         # optimal = np.minimum(np.array(r_heuristic4['_obj']), np.minimum(np.array(heuristic4['_obj']), np.minimum(np.array(r_heuristic8['_obj']), np.minimum(np.array(r_heuristic2['_obj']), np.minimum(
             # np.minimum(np.array(heuristic2['_obj']), np.array(heuristic8['_obj'])), np.array(greedy['_obj']))))))
         if biginstance:
-            pdb.set_trace()
+            
             optimal = np.minimum(np.array(r_heuristic2['_obj']), np.array(greedy['_obj']))
 
         else:
@@ -346,6 +353,9 @@ def result_table(reps, file_path, broken, ks, biginstance=False):
         objs = np.maximum(0, objs)
 
         mean, error = mean_std_lists(objs, sample_size)
+
+        obj_range_above.append(max(objs))
+        obj_range_below.append(min(objs))
         obj_means.append(mean)
         obj_err.append(error)
         data[r, 0] = mean
@@ -357,6 +367,8 @@ def result_table(reps, file_path, broken, ks, biginstance=False):
         mean, error = mean_std_lists(taps, sample_size)
         tap_means.append(mean)
         tap_err.append(error)
+        tap_range_above.append(max(taps))
+        tap_range_below.append(min(taps))
         data[r, 2] = mean
         data[r, 3] = error
 
@@ -364,19 +376,42 @@ def result_table(reps, file_path, broken, ks, biginstance=False):
         mean, error = mean_std_lists(elapsed_values, sample_size)
         elapsed_means.append(mean)
         elapsed_err.append(error)
+        elapsed_range_above.append(max(elapsed_values))
+        elapsed_range_below.append(min(elapsed_values))
         data[r, 4] = mean
         data[r, 5] = error
 
         r += 1
 
+
+
+
+
     obj_means_scaled = obj_means / max(obj_means)
-    obj_err_scaled = obj_err / max(obj_means)
+    
+    obj_range_above = obj_range_above / max(obj_means)
+    obj_range_below = obj_range_below / max(obj_means)
+
+    tap_range_above = np.array(tap_range_above)
+    tap_range_below  = np.array(tap_range_below)
+    tap_range_above = tap_range_above/max(tap_means)
+    tap_range_below = tap_range_below/max(tap_means)
+    
+    elapsed_range_above = np.array(elapsed_range_above)
+    elapsed_range_below  = np.array(elapsed_range_below)
+    elapsed_range_above = elapsed_range_above/max(elapsed_means)
+    elapsed_range_below = elapsed_range_below/max(elapsed_means)
+
+    obj_err_scaled = np.nan_to_num(np.array(obj_err)/np.array(obj_means)*np.array(obj_means_scaled))
+    # obj_err_scaled = obj_err * obj_means_scaled /obj_means
 
     tap_means_scaled = tap_means / max(tap_means)
-    tap_err_scaled = tap_err / max(tap_means)
+    tap_err_scaled = np.nan_to_num(np.array(tap_err)/np.array(tap_means)*np.array(tap_means_scaled))
+    # tap_err_scaled = tap_err / max(tap_means)
 
     elapsed_means_scaled = elapsed_means / max(elapsed_means)
-    elapsed_err_scaled = elapsed_err / max(elapsed_means)
+    elapsed_err_scaled = np.nan_to_num(np.array(elapsed_err)/np.array(elapsed_means)*np.array(elapsed_means_scaled))
+    # elapsed_err_scaled = elapsed_err / max(elapsed_means)
 
 
     maxdiff = np.max((np.array(greedy['_obj']) - optimal)/optimal*100)
@@ -484,12 +519,22 @@ def result_table(reps, file_path, broken, ks, biginstance=False):
                 ecolor='#c6ccce', alpha=0.8, capsize=5, label='Avg Time Elapsed (s)', hatch='xxx')
 
     else:
+        lower_err = np.array(obj_means_scaled) - np.array(obj_err_scaled)
+        lower_err = np.where(lower_err < 0, obj_means_scaled, obj_err_scaled)
+
         plt.bar(r_obj, obj_means_scaled, width=barWidth, edgecolor='#087efe', color='#087efe',
-                ecolor='#c6ccce', alpha=0.8, yerr=obj_err_scaled, capsize=5, label='Avg Rel Gap')
+                ecolor='#c6ccce', alpha=0.8, yerr=(obj_range_below, obj_range_above), capsize=5, label='Avg Rel Gap')
         plt.bar(r_tap, tap_means_scaled, width=barWidth, edgecolor='#00b33c', color='#00b33c',
-                ecolor='#c6ccce', alpha=0.8, yerr=tap_err_scaled, capsize=5, label='Avg Tap Solved')
+                ecolor='#c6ccce', alpha=0.8, yerr=(tap_range_below, tap_range_above), capsize=5, label='Avg Tap Solved')
         plt.bar(r_elapsed, elapsed_means_scaled, width=barWidth, edgecolor='#FF4500', color='#FF4500',
-                ecolor='#c6ccce', alpha=0.8, yerr=elapsed_err_scaled, capsize=5, label='Avg Time Elapsed (s)')
+                ecolor='#c6ccce', alpha=0.8, yerr=(elapsed_range_below, elapsed_range_above), capsize=5, label='Avg Time Elapsed (s)')
+        # plt.bar(r_obj, obj_means_scaled, width=barWidth, edgecolor='#087efe', color='#087efe',
+                # ecolor='#c6ccce', alpha=0.8, capsize=5, label='Avg Rel Gap')
+        # plt.bar(r_tap, tap_means_scaled, width=barWidth, edgecolor='#00b33c', color='#00b33c',
+                # ecolor='#c6ccce', alpha=0.8, capsize=5, label='Avg Tap Solved')
+        # plt.bar(r_elapsed, elapsed_means_scaled, width=barWidth, edgecolor='#FF4500', color='#FF4500',
+                # ecolor='#c6ccce', alpha=0.8, capsize=5, label='Avg Time Elapsed (s)')
+
 
     # tap_means_scaled[i]/2
     for i in range(len(dict_list)):
@@ -523,6 +568,18 @@ def result_table(reps, file_path, broken, ks, biginstance=False):
             reps + 1) + ' different instances.\n Heuristic solution was taken as best - since not possible to solve to optimality'
     # plt.figtext(0.5, 0.01, '', wrap=True,
     #             ha='center', va="bottom", fontsize=9)
+    # plt.ylim(0,)
+
+    print('objs')
+    print(obj_range_below)
+    print(obj_range_above)
+    print('\n taps')
+    print(tap_range_below)
+    print(tap_range_above)
+    print('\n elapsed')
+    print(elapsed_range_below)
+    print(elapsed_range_above)
+
     plt.legend(fontsize=8)
     save_fig(file_path, 'performance_graph_' +
              'w_bridge_' + str(broken), tight_layout=False)

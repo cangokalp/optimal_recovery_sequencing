@@ -825,7 +825,7 @@ def expand_backward(start_node, end_node, minimum_bf_n, open_list_b, open_list_f
     return open_list_b, num_tap_solved, current_level, minimum_bf_n, tot_child, uncommon_number, common_number
 
 def purge(open_list_b, open_list_f, beam_k, num_purged, len_f, len_b, closed_list_f, closed_list_b, f_activated, b_activated, minimum_ff_n, minimum_bf_n, iter_num):
-    starting = 250
+    starting = 50
     if len_f >= starting or f_activated:
         f_activated = 1
 
@@ -869,29 +869,36 @@ def purge(open_list_b, open_list_f, beam_k, num_purged, len_f, len_b, closed_lis
                 olf_ub = olf_node.ub
                 removed_from_closed = []
 
-
-
-                if iter_num <= 500:
+                if iter_num <= 250:
                     for a_node in closed_list_f[i]:
-                        if a_node.lb <= olf_min*1.025: #*1.1:
+                        if a_node.lb <= olf_min*1.1: #*1.1:
                             open_list_f[i].append(a_node)
                             removed_from_closed.append(a_node)
-                        elif a_node.ub*1.1 <= olf_ub:
+                        elif a_node.ub <= olf_ub:
+                            open_list_f[i].append(a_node)
+                            removed_from_closed.append(a_node)
+
+                elif iter_num <= 500:
+                    for a_node in closed_list_f[i]:
+                        if a_node.lb <= olf_min*1.1:
+                            open_list_f[i].append(a_node)
+                            removed_from_closed.append(a_node)
+                        elif a_node.ub <= olf_ub:
                             open_list_f[i].append(a_node)
                             removed_from_closed.append(a_node)
 
                 elif iter_num <= 1000:
                     for a_node in closed_list_f[i]:
-                        if a_node.lb <= olf_min * 1.01:
+                        if a_node.lb <= olf_min * 1.025:
                             open_list_f[i].append(a_node)
                             removed_from_closed.append(a_node)
-                        # elif a_node.ub*1.1 <= olf_ub:
-                        #     open_list_f[i].append(a_node)
-                        #     removed_from_closed.append(a_node)
+                        elif a_node.ub*1.05 <= olf_ub:
+                            open_list_f[i].append(a_node)
+                            removed_from_closed.append(a_node)
 
                 elif iter_num <= 1500:
                     for a_node in closed_list_f[i]:
-                        if a_node.lb <= olf_min: #* 1.01:
+                        if a_node.lb <= olf_min * 1.01:
                             open_list_f[i].append(a_node)
                             removed_from_closed.append(a_node)
                 #         elif a_node.ub <= olf_ub:
@@ -947,25 +954,34 @@ def purge(open_list_b, open_list_f, beam_k, num_purged, len_f, len_b, closed_lis
 
                 removed_from_closed = []
 
-                if iter_num <= 500:
+                if iter_num <= 250:
                     for a_node in closed_list_b[i]:
-                        if a_node.lb <= olb_min * 1.025:
+                        if a_node.lb <= olb_min * 1.1:
                             open_list_b[i].append(a_node)
                             removed_from_closed.append(a_node)
-                        elif a_node.ub*1.1 <= olb_ub:
+                        elif a_node.ub <= olb_ub:
+                            open_list_b[i].append(a_node)
+                            removed_from_closed.append(a_node)
+
+                elif iter_num <= 500:
+                    for a_node in closed_list_b[i]:
+                        if a_node.lb <= olb_min * 1.1:
+                            open_list_b[i].append(a_node)
+                            removed_from_closed.append(a_node)
+                        elif a_node.ub <= olb_ub:
                             open_list_b[i].append(a_node)
                             removed_from_closed.append(a_node)
                 elif iter_num <= 1000:
                     for a_node in closed_list_b[i]:
-                        if a_node.lb <= olb_min * 1.01:
+                        if a_node.lb <= olb_min * 1.025:
                             open_list_b[i].append(a_node)
                             removed_from_closed.append(a_node)
-                        # elif a_node.ub*1.1 <= olb_ub:
-                        #     open_list_b[i].append(a_node)
-                        #     removed_from_closed.append(a_node)
+                        elif a_node.ub*1.05 <= olb_ub:
+                            open_list_b[i].append(a_node)
+                            removed_from_closed.append(a_node)
                 elif iter_num <= 1500:
                     for a_node in closed_list_b[i]:
-                        if a_node.lb <= olb_min :
+                        if a_node.lb <= olb_min*1.01:
                             open_list_b[i].append(a_node)
                             removed_from_closed.append(a_node)
                 #         elif a_node.ub <= olb_ub:
@@ -1062,7 +1078,7 @@ def search(start_node, end_node, bfs, beam_search=False, beam_k=None, get_feas=T
             return bfs.path, bfs.cost, num_tap_solved, tot_child, uncommon_number, common_number, num_purged
 
         #stop after 2000 iterations
-        if iter_count >= 1500:
+        if iter_count >= 2000:
             return bfs.path, bfs.cost, num_tap_solved, tot_child, uncommon_number, common_number, num_purged
 
         fvals = [node.f for node in all_open_f]
@@ -1253,9 +1269,9 @@ def search(start_node, end_node, bfs, beam_search=False, beam_k=None, get_feas=T
                     bfs.cost = bound
                     bfs.path = path
 
-        #once explored 300 nodes in one front, start purge
-        if iter_count >= 200 and iter_count % 50 == 0 and iter_count != 0:
-            if (len_f >= 250 or len_b >= 250) or (f_activated or b_activated):
+        #once explored 250 nodes in one front, start purge
+        if iter_count >= 150 and iter_count % 50 == 0 and iter_count != 0:
+            if (len_f >= 100 or len_b >= 100) or (f_activated or b_activated):
             # if iter_count % 10 == 0:
                 if beam_search:
                     open_list_b, open_list_f, num_purged, f_activated, b_activated, closed_list_f, closed_list_b = purge(
@@ -1365,13 +1381,13 @@ def state_after(damaged_links, save_dir, relax=False, real=False, bsearch=False,
         elapsed = time.time() - start
         save(fname, net_after)
         save(fname + '_tstt', after_eq_tstt)
-        shutil.copy('batch0.bin', 'after/batch0.bin')
+        # shutil.copy('batch0.bin', 'after/batch0.bin')
         return net_after, after_eq_tstt, elapsed
     else:
         net_after = load(fname)
         after_eq_tstt = load(fname + '_tstt')
 
-    shutil.copy('batch0.bin', 'after/batch0.bin')
+    # shutil.copy('batch0.bin', 'after/batch0.bin')
     return net_after, after_eq_tstt
 
 def state_before(damaged_links, save_dir, relax=False, real=False, bsearch=False, ext_name=''):
@@ -1396,13 +1412,13 @@ def state_before(damaged_links, save_dir, relax=False, real=False, bsearch=False
 
         save(fname, net_before)
         save(fname + '_tstt', before_eq_tstt)
-        shutil.copy('batch0.bin', 'before/batch0.bin')
+        # shutil.copy('batch0.bin', 'before/batch0.bin')
         return net_before, before_eq_tstt, elapsed
     else:
         net_before = load(fname)
         before_eq_tstt = load(fname + '_tstt')
 
-    shutil.copy('batch0.bin', 'before/batch0.bin')
+    # shutil.copy('batch0.bin', 'before/batch0.bin')
     return net_before, before_eq_tstt
 
 def safety(wb, bb):
@@ -1910,7 +1926,7 @@ if __name__ == '__main__':
         if rand_gen:
 
             #change this back to range 0,reps
-            for rep in range(1,reps):
+            for rep in range(reps):
                 print(num_broken)
                 memory = {}
 
