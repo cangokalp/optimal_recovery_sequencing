@@ -9,6 +9,7 @@ __pycache__/
 # ignore saved runs
 # ignore text files - outputs of TAP solutions
 *.txt
+*.bin
 saved/
 tap-b_wu/
 TransportationNetworks/
