@@ -133,7 +133,7 @@ def mean_std_lists(metric_values, sample_size):
     sigma = stdev / np.sqrt(sample_size)  # Standard deviation estimate
     error = t_critical * sigma
 
-    return mean, error
+    return mean, error, stdev
 
 
 def prep_dictionaries(method_dict, key_list):
@@ -238,7 +238,7 @@ def get_common_numbers():
 
 
 
-def result_table(reps, file_path, broken, ks, biginstance=False):
+def result_table(reps, file_path, broken, ks, biginstance=True):
     # bs_param_2 = str(int(int(broken) / 2.0))
     if int(broken) >= 32:
         biginstance = True
@@ -309,6 +309,10 @@ def result_table(reps, file_path, broken, ks, biginstance=False):
     tap_means = []
     elapsed_means = []
 
+    obj_stds = []
+    tap_stds =[]
+    elapsed_stds =[]
+
 
     obj_err = []
     tap_err = []
@@ -352,30 +356,32 @@ def result_table(reps, file_path, broken, ks, biginstance=False):
         objs = ((objs - optimal) / optimal) * 100
         objs = np.maximum(0, objs)
 
-        mean, error = mean_std_lists(objs, sample_size)
+        mean, error, stdev = mean_std_lists(objs, sample_size)
 
         obj_range_above.append(max(objs))
         obj_range_below.append(min(objs))
         obj_means.append(mean)
+        obj_stds.append(stdev)
         obj_err.append(error)
         data[r, 0] = mean
         data[r, 1] = error
 
 
         taps = method_dict['_num_tap']
-
-        mean, error = mean_std_lists(taps, sample_size)
+        mean, error,stdev = mean_std_lists(taps, sample_size)
         tap_means.append(mean)
         tap_err.append(error)
         tap_range_above.append(max(taps))
         tap_range_below.append(min(taps))
+        tap_stds.append(stdev)
         data[r, 2] = mean
         data[r, 3] = error
 
         elapsed_values = method_dict['_elapsed']
-        mean, error = mean_std_lists(elapsed_values, sample_size)
+        mean, error, stdev= mean_std_lists(elapsed_values, sample_size)
         elapsed_means.append(mean)
         elapsed_err.append(error)
+        elapsed_stds.append(stdev)
         elapsed_range_above.append(max(elapsed_values))
         elapsed_range_below.append(min(elapsed_values))
         data[r, 4] = mean
@@ -385,7 +391,8 @@ def result_table(reps, file_path, broken, ks, biginstance=False):
 
 
 
-
+    print(obj_means, obj_stds, tap_means, tap_stds, elapsed_means, elapsed_stds)
+    pdb.set_trace()
 
     obj_means_scaled = obj_means / max(obj_means)
     

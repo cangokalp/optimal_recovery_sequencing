@@ -14,6 +14,7 @@ import numpy as np
 import cProfile
 import pstats
 import networkx as nx
+import caffeine
 import os.path
 from ctypes import *
 import time
@@ -32,15 +33,13 @@ parser.add_argument('-b', '--num_broken', type=int,
 parser.add_argument('-a', '--approx', type=bool,
                     help='approximation enabled for speed', default=False)
 parser.add_argument('-s', '--beamsearch', type=bool,
-                    help='beam search enabled for speed', default=False)
-parser.add_argument('-k', '--beamk', type=int,
-                    help='beam search parameter', default=20)
+                    help='beam search enabled for speed', default=True)
 parser.add_argument('-r', '--reps', type=int,
-                    help='number of scenarios with the given parameters', default=1)
+                    help='number of scenarios with the given parameters', default=5)
 parser.add_argument('-g', '--graphing', type=bool, 
                     help='graphing mode', default=False)
-parser.add_argument('-l', '--loc', type=bool,
-                    help='location based sampling', default=False)
+parser.add_argument('-l', '--loc', type=int,
+                    help='location based sampling', default=0)
 parser.add_argument('-o', '--scenario', type=str, 
                     help='scenario file', default='scenario.csv')
 parser.add_argument('-t', '--strength', type=str, 
@@ -50,11 +49,15 @@ parser.add_argument('-y', '--onlybeforeafter', type=bool,
 parser.add_argument('-f', '--full', type=bool,
                     help='to use full algo not beam search', default=False)
 parser.add_argument('-j', '--random', type=bool,
-                    help='generate scenarios randomly', default=False)
+                    help='generate scenarios randomly', default=True)
+parser.add_argument('-c', '--gamma', type=int,
+                    help='hyperparameter to expand the search', default=128)
+parser.add_argument('-v', '--beta', type=int,
+                    help='hyperparameter that decides the frequency of purge', default=128)
 
 args = parser.parse_args()
 
-SEED = 9
+SEED = 42
 FOLDER = "TransportationNetworks"
 MAX_DAYS = 180
 MIN_DAYS = 21
@@ -824,11 +827,15 @@ def expand_backward(start_node, end_node, minimum_bf_n, open_list_b, open_list_f
 
     return open_list_b, num_tap_solved, current_level, minimum_bf_n, tot_child, uncommon_number, common_number
 
-def purge(open_list_b, open_list_f, beam_k, num_purged, len_f, len_b, closed_list_f, closed_list_b, f_activated, b_activated, minimum_ff_n, minimum_bf_n, iter_num):
-    starting = 50
-    if len_f >= starting or f_activated:
-        f_activated = 1
+def purge(open_list_b, open_list_f, beam_k, num_purged, len_f, len_b, closed_list_f, closed_list_b, f_activated, b_activated, minimum_ff_n, minimum_bf_n, iter_num, beta=256, n_0=0.1):
+    # starting = 50
+    # if len_f >= starting or f_activated:
+    #     f_activated = 1
 
+    # print(n_0*(0.5**(iter_num/beta)))
+    # pdb.set_trace()
+
+    if f_activated:
         for i in range(2, len(damaged_dict) + 1):
 
             if i in open_list_f.keys():
@@ -869,41 +876,51 @@ def purge(open_list_b, open_list_f, beam_k, num_purged, len_f, len_b, closed_lis
                 olf_ub = olf_node.ub
                 removed_from_closed = []
 
-                if iter_num <= 250:
-                    for a_node in closed_list_f[i]:
-                        if a_node.lb <= olf_min*1.1: #*1.1:
-                            open_list_f[i].append(a_node)
-                            removed_from_closed.append(a_node)
-                        elif a_node.ub <= olf_ub:
-                            open_list_f[i].append(a_node)
-                            removed_from_closed.append(a_node)
 
-                elif iter_num <= 500:
-                    for a_node in closed_list_f[i]:
-                        if a_node.lb <= olf_min*1.1:
-                            open_list_f[i].append(a_node)
-                            removed_from_closed.append(a_node)
-                        elif a_node.ub <= olf_ub:
-                            open_list_f[i].append(a_node)
-                            removed_from_closed.append(a_node)
+                for a_node in closed_list_f[i]:
 
-                elif iter_num <= 1000:
-                    for a_node in closed_list_f[i]:
-                        if a_node.lb <= olf_min * 1.025:
-                            open_list_f[i].append(a_node)
-                            removed_from_closed.append(a_node)
-                        elif a_node.ub*1.05 <= olf_ub:
-                            open_list_f[i].append(a_node)
-                            removed_from_closed.append(a_node)
+                    if a_node.lb <= olf_min * (1 + n_0*0.5**(math.floor(iter_num/beta))):
+                        open_list_f[i].append(a_node)
+                        removed_from_closed.append(a_node)
+                    elif a_node.ub <= olf_ub:
+                        open_list_f[i].append(a_node)
+                        removed_from_closed.append(a_node)
 
-                elif iter_num <= 1500:
-                    for a_node in closed_list_f[i]:
-                        if a_node.lb <= olf_min * 1.01:
-                            open_list_f[i].append(a_node)
-                            removed_from_closed.append(a_node)
+                # if iter_num <= 250:
+                #     for a_node in closed_list_f[i]:
+                #         if a_node.lb <= olf_min*1.1: #*1.1:
+                #             open_list_f[i].append(a_node)
+                #             removed_from_closed.append(a_node)
                 #         elif a_node.ub <= olf_ub:
                 #             open_list_f[i].append(a_node)
                 #             removed_from_closed.append(a_node)
+
+                # elif iter_num <= 500:
+                #     for a_node in closed_list_f[i]:
+                #         if a_node.lb <= olf_min*1.1:
+                #             open_list_f[i].append(a_node)
+                #             removed_from_closed.append(a_node)
+                #         elif a_node.ub <= olf_ub:
+                #             open_list_f[i].append(a_node)
+                #             removed_from_closed.append(a_node)
+
+                # elif iter_num <= 1000:
+                #     for a_node in closed_list_f[i]:
+                #         if a_node.lb <= olf_min * 1.025:
+                #             open_list_f[i].append(a_node)
+                #             removed_from_closed.append(a_node)
+                #         elif a_node.ub*1.05 <= olf_ub:
+                #             open_list_f[i].append(a_node)
+                #             removed_from_closed.append(a_node)
+
+                # elif iter_num <= 1500:
+                #     for a_node in closed_list_f[i]:
+                #         if a_node.lb <= olf_min * 1.01:
+                #             open_list_f[i].append(a_node)
+                #             removed_from_closed.append(a_node)
+                # #         elif a_node.ub <= olf_ub:
+                # #             open_list_f[i].append(a_node)
+                # #             removed_from_closed.append(a_node)
 
 
                 for a_node in removed_from_closed:
@@ -911,9 +928,9 @@ def purge(open_list_b, open_list_f, beam_k, num_purged, len_f, len_b, closed_lis
                 del removed_from_closed
 
 
-    if len_b >= starting or b_activated:
-        b_activated = 1
-
+    # if len_b >= starting or b_activated:
+    #     b_activated = 1
+    if b_activated:
         for i in range(2, len(damaged_dict)+1):
 
             if i in open_list_b.keys():
@@ -954,39 +971,48 @@ def purge(open_list_b, open_list_f, beam_k, num_purged, len_f, len_b, closed_lis
 
                 removed_from_closed = []
 
-                if iter_num <= 250:
-                    for a_node in closed_list_b[i]:
-                        if a_node.lb <= olb_min * 1.1:
+
+                for a_node in closed_list_b[i]:
+                        if a_node.lb <= olb_min * (1 + n_0*0.5**(math.floor(iter_num/beta))):
                             open_list_b[i].append(a_node)
                             removed_from_closed.append(a_node)
                         elif a_node.ub <= olb_ub:
                             open_list_b[i].append(a_node)
                             removed_from_closed.append(a_node)
 
-                elif iter_num <= 500:
-                    for a_node in closed_list_b[i]:
-                        if a_node.lb <= olb_min * 1.1:
-                            open_list_b[i].append(a_node)
-                            removed_from_closed.append(a_node)
-                        elif a_node.ub <= olb_ub:
-                            open_list_b[i].append(a_node)
-                            removed_from_closed.append(a_node)
-                elif iter_num <= 1000:
-                    for a_node in closed_list_b[i]:
-                        if a_node.lb <= olb_min * 1.025:
-                            open_list_b[i].append(a_node)
-                            removed_from_closed.append(a_node)
-                        elif a_node.ub*1.05 <= olb_ub:
-                            open_list_b[i].append(a_node)
-                            removed_from_closed.append(a_node)
-                elif iter_num <= 1500:
-                    for a_node in closed_list_b[i]:
-                        if a_node.lb <= olb_min*1.01:
-                            open_list_b[i].append(a_node)
-                            removed_from_closed.append(a_node)
+                # if iter_num <= 250:
+                #     for a_node in closed_list_b[i]:
+                #         if a_node.lb <= olb_min * 1.1:
+                #             open_list_b[i].append(a_node)
+                #             removed_from_closed.append(a_node)
                 #         elif a_node.ub <= olb_ub:
                 #             open_list_b[i].append(a_node)
                 #             removed_from_closed.append(a_node)
+
+                # elif iter_num <= 500:
+                #     for a_node in closed_list_b[i]:
+                #         if a_node.lb <= olb_min * 1.1:
+                #             open_list_b[i].append(a_node)
+                #             removed_from_closed.append(a_node)
+                #         elif a_node.ub <= olb_ub:
+                #             open_list_b[i].append(a_node)
+                #             removed_from_closed.append(a_node)
+                # elif iter_num <= 1000:
+                #     for a_node in closed_list_b[i]:
+                #         if a_node.lb <= olb_min * 1.025:
+                #             open_list_b[i].append(a_node)
+                #             removed_from_closed.append(a_node)
+                #         elif a_node.ub*1.05 <= olb_ub:
+                #             open_list_b[i].append(a_node)
+                #             removed_from_closed.append(a_node)
+                # elif iter_num <= 1500:
+                #     for a_node in closed_list_b[i]:
+                #         if a_node.lb <= olb_min*1.01:
+                #             open_list_b[i].append(a_node)
+                #             removed_from_closed.append(a_node)
+                # #         elif a_node.ub <= olb_ub:
+                # #             open_list_b[i].append(a_node)
+                # #             removed_from_closed.append(a_node)
 
                 for a_node in removed_from_closed:
                     closed_list_b[i].remove(a_node)
@@ -996,7 +1022,7 @@ def purge(open_list_b, open_list_f, beam_k, num_purged, len_f, len_b, closed_lis
     return open_list_b, open_list_f, num_purged,  f_activated, b_activated, {}, {}
     # return open_list_b, open_list_f, num_purged,  f_activated, b_activated, closed_list_f, closed_list_b
 
-def search(start_node, end_node, bfs, beam_search=False, beam_k=None, get_feas=True):
+def search(start_node, end_node, bfs, beam_search=False, beam_k=None, get_feas=True, beta=50, gamma=50):
     """Returns the best order to visit the set of nodes"""
 
     # ideas in Holte: (search that meets in the middle)
@@ -1027,7 +1053,7 @@ def search(start_node, end_node, bfs, beam_search=False, beam_k=None, get_feas=T
     minimum_bf_n = end_node
 
     num_tap_solved = 0
-    f_activated, b_activated = 0, 0
+    f_activated, b_activated = False, False
     tot_child = 0
     uncommon_number = 0
     common_number = 0
@@ -1090,7 +1116,12 @@ def search(start_node, end_node, bfs, beam_search=False, beam_k=None, get_feas=T
         minimum_bf_n = all_open_b[minbind]
 
         #every 50 iter, update bounds
-        if iter_count % 50==0 and iter_count!=0:
+        if iter_count<512:
+            up_freq = 64
+        else:
+            up_freq = 128
+
+        if iter_count % up_freq==0 and iter_count!=0:
             print('----------')
             print(f'search time elapsed: {(time.time() - search_timer)/60}')
             print(f'max_level_f: {max_level_f}, max_level_b: {max_level_b}')
@@ -1118,8 +1149,9 @@ def search(start_node, end_node, bfs, beam_search=False, beam_k=None, get_feas=T
                                           common_number=common_number)
                     a_node.f = a_node.lb
 
-        #every 100 iters get feasible solution
-        if iter_count % 50==0 and iter_count !=0:
+        # #every 100 iters get feasible solution
+        # if iter_count % 50==0 and iter_count !=0:
+        if iter_count % gamma==0 and iter_count!=0:
 
             if get_feas:
                 #fw
@@ -1269,13 +1301,19 @@ def search(start_node, end_node, bfs, beam_search=False, beam_k=None, get_feas=T
                     bfs.cost = bound
                     bfs.path = path
 
-        #once explored 250 nodes in one front, start purge
-        if iter_count >= 150 and iter_count % 50 == 0 and iter_count != 0:
-            if (len_f >= 100 or len_b >= 100) or (f_activated or b_activated):
-            # if iter_count % 10 == 0:
+
+            seq_length = len(damaged_links)
+            threshold_start = seq_length + int(seq_length**2/int(math.log(seq_length,2)))
+            
+            if len_f >= threshold_start:
+                f_activated = True
+            if len_b >= threshold_start:
+                b_activated = True
+
+            if f_activated or b_activated:
                 if beam_search:
                     open_list_b, open_list_f, num_purged, f_activated, b_activated, closed_list_f, closed_list_b = purge(
-                        open_list_b, open_list_f, beam_k, num_purged, len_f, len_b, closed_list_f, closed_list_b, f_activated, b_activated, minimum_ff_n, minimum_bf_n, iter_count)
+                    open_list_b, open_list_f, beam_k, num_purged, len_f, len_b, closed_list_f, closed_list_b, f_activated, b_activated, minimum_ff_n, minimum_bf_n, iter_count, beta=beta)
 
     #check in case something weitd happened
     if len(bfs.path) != len(damaged_links):
@@ -1893,7 +1931,8 @@ if __name__ == '__main__':
     approx = args.approx
     reps = args.reps
     beam_search = args.beamsearch
-    # beam_k = int(args.beamk)
+    beta = args.beta
+    gamma = args.gamma
     graphing = args.graphing
     scenario_file = args.scenario
     before_after = args.onlybeforeafter
@@ -1901,7 +1940,7 @@ if __name__ == '__main__':
     full = args.full
     rand_gen = args.random
     location_based = args.loc
-    opt = True
+    opt = False
 
     NETWORK = os.path.join(FOLDER, net_name)
     JSONFILE = os.path.join(NETWORK, net_name.lower() + '.geojson')
@@ -1925,7 +1964,6 @@ if __name__ == '__main__':
     else:
         if rand_gen:
 
-            #change this back to range 0,reps
             for rep in range(reps):
                 print(num_broken)
                 memory = {}
@@ -1969,7 +2007,6 @@ if __name__ == '__main__':
                 sorted_d = sorted(netflows.items(), key=operator.itemgetter(1))[::-1]
 
                 cutind = len(netflows)*0.7
-                # pdb.set_trace()
                 try:
                     sorted_d = sorted_d[:int(cutind)]
                 except:
@@ -1978,8 +2015,8 @@ if __name__ == '__main__':
                 all_links = [lnk[0] for lnk in sorted_d]
                 flow_on_links = [lnk[1] for lnk in sorted_d]
                 # all_links = sorted(all_links)
-                np.random.seed((rep+1)*42+int(num_broken))
-                random.seed((rep+1)*42+int(num_broken))
+                np.random.seed((rep)*42+int(num_broken))
+                random.seed((rep)*42+int(num_broken))
                 netg = Network(NETFILE, TRIPFILE)
                 G = nx.DiGraph()
 
@@ -2026,7 +2063,7 @@ if __name__ == '__main__':
                             lat = row['Y']
                             coord_dict[row['node']] = (lon, lat)
 
-                    #pick a center link at random:
+                    #pick a center node at random:
                     nodedecoy = deepcopy(list(netg.node.keys()))
                     center_node = np.random.choice(nodedecoy, 1, replace=False)[0]
 
@@ -2042,7 +2079,6 @@ if __name__ == '__main__':
 
                         dist_dict[anode] = distance
 
-
                     #sort dist_dict with distances
                     sorted_dist = sorted(dist_dict.items(), key=operator.itemgetter(1))
                     all_nodes = [nodes[0] for nodes in sorted_dist]
@@ -2050,28 +2086,59 @@ if __name__ == '__main__':
 
                     selected_nodes = [center_node]
 
+                    distance_original = deepcopy(distances)
                     decoy = deepcopy(all_nodes)
 
                     i = 0
-                    while i <= int(math.floor(num_broken*2/3.0)):
 
+
+                    # while i <= int(math.ceil(num_broken)):
+
+                        # another_node = random.choices(decoy, np.exp(np.cbrt(1.0/np.array(distances))), k=1)[0]
+
+                        # weights = 1.0/np.array(distances) 
+                        # weights = (weights - min(weights)) / (max(weights) - min(weights))
+                        # weights = weights**3
+
+                    # weights = 1.0/np.array(distances) 
+                    # weights = weights/weights[0]
+                    # weights = weights**3.5
+                    # weights = list(weights)
+                    while i <= int(math.floor(num_broken*2/3.0)) and len(distances)>0:
+
+                        # weights = 1.0/np.array(distances) 
+                        # weights = weights/weights[0]
+                        # weights = weights**3.5
                         another_node = random.choices(decoy, np.exp(np.cbrt(1.0/np.array(distances))), k=1)[0]
+                        
+                        # weights = list(weights)
+                        # another_node = random.choices(decoy, weights, k=1)[0]
+
 
                         idx = decoy.index(another_node)
                         del distances[idx]
-                        decoy.remove(another_node)
+                        del decoy[idx]
+                        # del weights[idx]
                         selected_nodes.append(another_node)
                         i += 1
+                    
+
+                    selected_indices = [all_nodes.index(ind) for ind in selected_nodes[1:]]
                     print(selected_nodes)
+
+
                     #create linkset
                     linkset = []
                     for anode in selected_nodes:
+
                         links_rev = netg.node[anode].reverseStar
                         links_fw = netg.node[anode].forwardStar
 
+                        
                         for alink in links_rev:
                             if alink not in linkset:
                                 linkset.append(alink)
+                        
                         for alink in links_fw:
                             if alink not in linkset:
                                 linkset.append(alink)
@@ -2087,11 +2154,22 @@ if __name__ == '__main__':
                     iterno = 0
                     dG_orig = deepcopy(dG)
                     while i < int(num_broken):
+                        # print(i, iterno)
                         curlen = len(linkset)
+                        fol = np.array(flow_on_links)
+                        fol = fol/np.max(fol)
+
+                        # ij = random.choice(linkset)
+
+
                         if not fail:
                             ij = random.choices(linkset, weights=np.exp(np.power(flow_on_links, 1 / 3.0)), k=1)[0]
+                        #     # ij = random.choices(linkset, weights=fol, k=1)[0]
+
                         else:
                             ij = random.choices(linkset, weights=np.exp(np.power(flow_on_links, 1 / 4.0)), k=1)[0]
+                        #     # ij = random.choices(linkset, weights=fol, k=1)[0]
+
 
                         u = netg.link[ij].tail
                         v = netg.link[ij].head
@@ -2113,7 +2191,9 @@ if __name__ == '__main__':
                             del flow_on_links[ind_ij]
                             linkset.remove(ij)
 
-                        if iterno % 1000==0 and iterno!=0:
+                        if iterno % 100 == 0:
+                            print(iterno, damaged_links)
+                        if iterno % 2000==0 and iterno!=0:
                             print(damaged_links)
                             damaged_links = []
                             flow_on_links = safe
@@ -2125,6 +2205,9 @@ if __name__ == '__main__':
                             prev_dG = deepcopy(dG_orig)
                         iterno +=1
 
+                        if iterno > 5000:
+                            pdb.set_trace()
+
                 else:
 
                     weights = flow_on_links
@@ -2132,7 +2215,9 @@ if __name__ == '__main__':
                     while i < int(num_broken):
                         curlen = len(decoy)
                         # ij = random.choices(decoy, weights=np.exp(np.cbrt(weights)), k=1)[0]
-                        ij = random.choices(decoy, weights=np.exp(np.power(weights, 1/3.0)), k=1)[0]
+                        # 
+                        # ij = random.choices(decoy, weights=np.exp(np.power(weights, 1/3.0)), k=1)[0]
+                        ij = random.choice(decoy)
 
                         u = netg.link[ij].tail
                         v = netg.link[ij].head
@@ -2155,9 +2240,11 @@ if __name__ == '__main__':
                             decoy.remove(ij)
 
                 print('damaged_links are created:', damaged_links)
-
+                # damaged_links = ['(7,8)', '(3,4)', '(23,14)', '(19,20)']
+                # damaged_links = ['(5,6)', '(8,6)', '(9,8)', '(9,5)', '(8,7)']
                 damaged_dict = {}
                 net.link = {}
+                # pdb.set_trace()
 
                 with open(NETFILE, "r") as networkFile:
 
@@ -2189,33 +2276,37 @@ if __name__ == '__main__':
 
                 for lnk in damaged_links:
 
+                    # damaged_dict[lnk] = np.random.uniform(21, 90)
+
+                    # damaged_dict[lnk] = np.random.gamma(shape=2, scale=4)*7
+                    # damaged_dict[lnk] = np.random.gamma(shape=7, scale=8)
+
+                    # if net.link[lnk]['length-cap'] > np.quantile(len_links, 0.5):
+                        # damaged_dict[lnk] = np.random.gamma(shape=6, scale=10)
+                    # else:
+                        # damaged_dict[lnk] = np.random.gamma(shape=9, scale=6)
+
                     if net.link[lnk]['length-cap'] > np.quantile(len_links, 0.95):
-                        # damaged_dict[lnk] = np.random.uniform(84, 168, 1)[0]
                         damaged_dict[lnk] = np.random.gamma(4*2, 7*2, 1)[0]
 
 
                     elif net.link[lnk]['length-cap'] > np.quantile(len_links, 0.75):
-                        # damaged_dict[lnk] = np.random.uniform(35, 84, 1)[0]
                         damaged_dict[lnk] = np.random.gamma(7*np.sqrt(2), 7*np.sqrt(2), 1)[0]
 
 
                     elif net.link[lnk]['length-cap'] > np.quantile(len_links, 0.5):
-                        # damaged_dict[lnk] = np.random.uniform(28, 70, 1)[0]
                         damaged_dict[lnk] = np.random.gamma(12, 7, 1)[0]
 
 
                     elif net.link[lnk]['length-cap'] > np.quantile(len_links, 0.25):
-                        # damaged_dict[lnk] = np.random.uniform(21, 56, 1)[0]
                         damaged_dict[lnk] = np.random.gamma(10, 7, 1)[0]
 
                     else:
-                        # damaged_dict[lnk] = np.random.uniform(14, 28, 1)[0]
                         damaged_dict[lnk] = np.random.gamma(6, 7, 1)[0]
 
 
-
                 print(f'experiment number: {rep}')
-                if len(damaged_links) > 6:
+                if len(damaged_links) >= 6:
                     opt=False
 
                 SCENARIO_DIR = NETWORK_DIR
@@ -2282,7 +2373,6 @@ if __name__ == '__main__':
                     greedy_obj, greedy_soln, greedy_elapsed, greedy_num_tap = greedy_heuristic(
                         net_after, after_eq_tstt, before_eq_tstt, time_net_before, time_net_after)
                     print('greedy_obj: ', greedy_obj)
-                    print(greedy_soln)
 
                     wb = deepcopy(wb_update)
                     bb = deepcopy(bb_update)
@@ -2293,9 +2383,9 @@ if __name__ == '__main__':
                     ### Get feasible solution using importance factor ###
                     importance_obj, importance_soln, importance_elapsed, importance_num_tap = importance_factor_solution(
                         net_before, after_eq_tstt, before_eq_tstt, time_net_before)
-
-                    print(f'links with best/worse swapped: {swapped_links}')
-                    # pdb.set_trace()
+                    print('importance_obj: ', importance_obj)
+                    
+                    # print(f'links with best/worse swapped: {swapped_links}')
 
                     best_benefit_taps = num_damaged
                     worst_benefit_taps = num_damaged
@@ -2353,9 +2443,24 @@ if __name__ == '__main__':
                         ks = [2]
 
                         for k in ks:
-                            if len(damaged_links) >= 32:
+
+                            # betas = [64, 128, 256, 512]
+                            # gammas = [32, 64, 128]
+                            
+                            betas = [128]
+                            gammas = [128]
+
+                            beta_gamma = list(itertools.product(gammas, betas))
+
+                            experiment_dict = {}
+                            # for gamma in gammas:
+                            for a_pair in beta_gamma:
+                                gamma = a_pair[0]
+                                beta = a_pair[1]
+                                # a_pair = gamma
+
                                 # beamsearch with gap 1e-4
-                                print('===')
+                                print('===', gamma, beta , '===')
 
                                 fname = save_dir + '/r_algo_solution' + '_k' + str(k)
                                 ext_name = 'r_k' + str(k)
@@ -2376,158 +2481,103 @@ if __name__ == '__main__':
                                 start_node.relax = True
                                 end_node.relax = True
 
-                                if not os.path.exists(fname + extension):
-                                    search_start = time.time()
-                                    r_algo_path, r_algo_obj, r_search_tap_solved, tot_childr, uncommon_numberr, common_numberr, num_purger = search(
-                                        start_node, end_node, bfs, beam_search=beam_search, beam_k=k)
-                                    search_elapsed = time.time() - search_start
 
-                                    net_after, after_eq_tstt = state_after(damaged_links, save_dir, real=True)
-                                    net_before, before_eq_tstt = state_before(damaged_links, save_dir, real=True)
+                                # if not os.path.exists(fname + extension):
+                                search_start = time.time()
+                                r_algo_path, r_algo_obj, r_search_tap_solved, tot_childr, uncommon_numberr, common_numberr, num_purger = search(
+                                    start_node, end_node, bfs, beam_search=beam_search, beam_k=k, beta=beta, gamma=gamma)
+                                search_elapsed = time.time() - search_start
 
-                                    first_net = deepcopy(net_after)
-                                    first_net.relax = False
-                                    r_algo_obj, _, _ = eval_sequence(
-                                        first_net, r_algo_path, after_eq_tstt, before_eq_tstt,
-                                        damaged_dict=damaged_dict)
+                                net_after, after_eq_tstt = state_after(damaged_links, save_dir, real=True)
+                                net_before, before_eq_tstt = state_before(damaged_links, save_dir, real=True)
 
-                                    r_algo_num_tap += r_search_tap_solved
-                                    r_algo_elapsed = search_elapsed + benefit_analysis_elapsed
+                                first_net = deepcopy(net_after)
+                                first_net.relax = False
+                                r_algo_obj, _, _ = eval_sequence(
+                                    first_net, r_algo_path, after_eq_tstt, before_eq_tstt, damaged_dict=damaged_dict)
 
-                                    save(fname + '_obj', r_algo_obj)
-                                    save(fname + '_path', r_algo_path)
-                                    save(fname + '_num_tap', r_algo_num_tap)
-                                    save(fname + '_elapsed', r_algo_elapsed)
-                                    save(fname + '_totchild', tot_childr)
-                                    save(fname + '_uncommon', uncommon_numberr)
-                                    save(fname + '_common', common_numberr)
-                                    save(fname + '_num_purge', num_purger)
+                                r_algo_num_tap += r_search_tap_solved
+                                r_algo_elapsed = search_elapsed + benefit_analysis_elapsed
 
-                                else:
-                                    r_algo_obj = load(fname + '_obj')
-                                    r_algo_path = load(fname + '_path')
-                                    r_algo_num_tap = load(fname + '_num_tap')
-                                    r_algo_elapsed = load(fname + '_elapsed')
+                                save(fname + '_obj', r_algo_obj)
+                                save(fname + '_path', r_algo_path)
+                                save(fname + '_num_tap', r_algo_num_tap)
+                                save(fname + '_elapsed', r_algo_elapsed)
+                                save(fname + '_totchild', tot_childr)
+                                save(fname + '_uncommon', uncommon_numberr)
+                                save(fname + '_common', common_numberr)
+                                save(fname + '_num_purge', num_purger)
 
-                                print(f'beam_search k: {k}, relaxed: True')
-                                print('obj: ', r_algo_obj)
-                            else:
-
-
-                                # beamsearch with gap 1e-4
-                                print('===')
-
-                                fname = save_dir + '/r_algo_solution' + '_k' + str(k)
-                                ext_name = 'r_k' + str(k)
-
-                                del memory
-                                memory = deepcopy(memory1)
-
-                                wb = wb_orig
-                                bb = bb_orig
-                                wb_update = wb_orig
-                                bb_update = bb_orig
-
-                                bfs.path = None
-                                bfs.cost = np.inf
-
-                                r_algo_num_tap = best_benefit_taps + worst_benefit_taps
-
-                                start_node.relax = True
-                                end_node.relax = True
-
-                                if not os.path.exists(fname + extension):
-                                    search_start = time.time()
-                                    r_algo_path, r_algo_obj, r_search_tap_solved, tot_childr, uncommon_numberr, common_numberr, num_purger = search(
-                                        start_node, end_node, bfs, beam_search=beam_search, beam_k=k)
-                                    search_elapsed = time.time() - search_start
-
-                                    net_after, after_eq_tstt = state_after(damaged_links, save_dir, real=True)
-                                    net_before, before_eq_tstt = state_before(damaged_links, save_dir, real=True)
-
-                                    first_net = deepcopy(net_after)
-                                    first_net.relax = False
-                                    r_algo_obj, _, _ = eval_sequence(
-                                        first_net, r_algo_path, after_eq_tstt, before_eq_tstt, damaged_dict=damaged_dict)
-
-                                    r_algo_num_tap += r_search_tap_solved
-                                    r_algo_elapsed = search_elapsed + benefit_analysis_elapsed
-
-                                    save(fname + '_obj', r_algo_obj)
-                                    save(fname + '_path', r_algo_path)
-                                    save(fname + '_num_tap', r_algo_num_tap)
-                                    save(fname + '_elapsed', r_algo_elapsed)
-                                    save(fname + '_totchild', tot_childr)
-                                    save(fname + '_uncommon', uncommon_numberr)
-                                    save(fname + '_common', common_numberr)
-                                    save(fname + '_num_purge', num_purger)
-
-                                else:
-                                    r_algo_obj = load(fname + '_obj')
-                                    r_algo_path = load(fname + '_path')
-                                    r_algo_num_tap = load(fname + '_num_tap')
-                                    r_algo_elapsed = load(fname + '_elapsed')
+                                # else:
+                                #     r_algo_obj = load(fname + '_obj')
+                                #     r_algo_path = load(fname + '_path')
+                                #     r_algo_num_tap = load(fname + '_num_tap')
+                                #     r_algo_elapsed = load(fname + '_elapsed')
 
                                 print(f'beam_search k: {k}, relaxed: True')
                                 print('obj: ', r_algo_obj)
+                                experiment_dict[a_pair] = [r_algo_obj, r_algo_num_tap, r_algo_elapsed]
 
-                                print('===')
+                            for k,v in experiment_dict.items():
+                                print('Gamma - Beta: {}, obj-tap-elapsed: {}'.format(k,v))
+                            
 
-                                del memory
-                                memory = deepcopy(memory1)
+                            # print('================================')
+                            # del memory
+                            # memory = deepcopy(memory1)
 
-                                wb = wb_orig
-                                bb = bb_orig
-                                wb_update = wb_orig
-                                bb_update = bb_orig
+                            # wb = wb_orig
+                            # bb = bb_orig
+                            # wb_update = wb_orig
+                            # bb_update = bb_orig
 
-                                bfs.path = None
-                                bfs.cost = np.inf
+                            # bfs.path = None
+                            # bfs.cost = np.inf
 
 
-                                fname = save_dir + '/beamsearch_solution' + '_k' + str(k)
-                                ext_name = '_k' + str(k)
-                                beamsearch_num_tap = best_benefit_taps + worst_benefit_taps
+                            # fname = save_dir + '/beamsearch_solution' + '_k' + str(k)
+                            # ext_name = '_k' + str(k)
+                            # beamsearch_num_tap = best_benefit_taps + worst_benefit_taps
 
-                                start_node.relax = False
-                                end_node.relax = False
+                            # start_node.relax = False
+                            # end_node.relax = False
 
-                                if not os.path.exists(fname + extension):
-                                    search_start = time.time()
-                                    beamsearch_path, beamsearch_obj, beamsearch_tap_solved, tot_childbs, uncommon_numberbs, common_numberbs, num_purgebs = search(
-                                        start_node, end_node, bfs, beam_search=beam_search, beam_k=k)
-                                    search_elapsed = time.time() - search_start
+                            # # if not os.path.exists(fname + extension):
+                            # search_start = time.time()
+                            # beamsearch_path, beamsearch_obj, beamsearch_tap_solved, tot_childbs, uncommon_numberbs, common_numberbs, num_purgebs = search(
+                            #     start_node, end_node, bfs, beam_search=beam_search, beam_k=k, beta=beta, gamma=gamma)
+                            # search_elapsed = time.time() - search_start
 
-                                    net_after, after_eq_tstt = state_after(damaged_links, save_dir, real=True)
-                                    net_before, before_eq_tstt = state_before(damaged_links, save_dir, real=True)
+                            # net_after, after_eq_tstt = state_after(damaged_links, save_dir, real=True)
+                            # net_before, before_eq_tstt = state_before(damaged_links, save_dir, real=True)
 
-                                    first_net = deepcopy(net_after)
-                                    first_net.relax = False
-                                    beamsearch_obj, _, _ = eval_sequence(
-                                        first_net, beamsearch_path, after_eq_tstt, before_eq_tstt,
-                                        damaged_dict=damaged_dict)
+                            # first_net = deepcopy(net_after)
+                            # first_net.relax = False
+                            # beamsearch_obj, _, _ = eval_sequence(
+                            #     first_net, beamsearch_path, after_eq_tstt, before_eq_tstt,
+                            #     damaged_dict=damaged_dict)
 
-                                    beamsearch_num_tap += beamsearch_tap_solved
-                                    beamsearch_elapsed = search_elapsed + benefit_analysis_elapsed
+                            # beamsearch_num_tap += beamsearch_tap_solved
+                            # beamsearch_elapsed = search_elapsed + benefit_analysis_elapsed
 
-                                    save(fname + '_obj', beamsearch_obj)
-                                    save(fname + '_path', beamsearch_path)
-                                    save(fname + '_num_tap', beamsearch_num_tap)
-                                    save(fname + '_elapsed', beamsearch_elapsed)
-                                    save(fname + '_totchild', tot_childbs)
-                                    save(fname + '_uncommon', uncommon_numberbs)
-                                    save(fname + '_common', common_numberbs)
-                                    save(fname + '_num_purge', num_purgebs)
+                            #     save(fname + '_obj', beamsearch_obj)
+                            #     save(fname + '_path', beamsearch_path)
+                            #     save(fname + '_num_tap', beamsearch_num_tap)
+                            #     save(fname + '_elapsed', beamsearch_elapsed)
+                            #     save(fname + '_totchild', tot_childbs)
+                            #     save(fname + '_uncommon', uncommon_numberbs)
+                            #     save(fname + '_common', common_numberbs)
+                            #     save(fname + '_num_purge', num_purgebs)
 
-                                else:
-                                    beamsearch_obj = load(fname + '_obj')
-                                    beamsearch_path = load(fname + '_path')
-                                    beamsearch_num_tap = load(fname + '_num_tap')
-                                    beamsearch_elapsed = load(fname + '_elapsed')
+                            # else:
+                            #     beamsearch_obj = load(fname + '_obj')
+                            #     beamsearch_path = load(fname + '_path')
+                            #     beamsearch_num_tap = load(fname + '_num_tap')
+                            #     beamsearch_elapsed = load(fname + '_elapsed')
 
-                                print(f'beam_search k: {k}, relaxed: False')
-                                print('obj: ', beamsearch_obj)
-                                print('soln: ', beamsearch_path)
+                            # print(f'beam_search k: {k}, relaxed: False')
+                            # print('obj: ', beamsearch_obj)
+                            # print('soln: ', beamsearch_path)
 
 
                     t = PrettyTable()
@@ -2539,10 +2589,10 @@ if __name__ == '__main__':
                         t.add_row(['APPROX', approx_obj, r_algo_elapsed, r_algo_num_tap])
                     if beam_search:
                         t.add_row(['BeamSearch_relaxed', r_algo_obj, r_algo_elapsed, r_algo_num_tap])
-                        if len(damaged_links) < 32:
-                            t.add_row(['BeamSearch', beamsearch_obj, beamsearch_elapsed, beamsearch_num_tap])
-                    if full:
-                        t.add_row(['ALGORITHM', algo_obj, algo_elapsed, algo_num_tap])
+                    # if len(damaged_links) < 32:
+                    #     t.add_row(['BeamSearch', beamsearch_obj, beamsearch_elapsed, beamsearch_num_tap])
+                    # if full:
+                    #     t.add_row(['ALGORITHM', algo_obj, algo_elapsed, algo_num_tap])
                     t.add_row(['LG', lg_obj, lg_elapsed, lg_num_tap])
                     t.add_row(['GREEDY', greedy_obj, greedy_elapsed, greedy_num_tap])
                     t.add_row(['IMPORTANCE', importance_obj,
@@ -2772,7 +2822,7 @@ if __name__ == '__main__':
                     if not os.path.exists(fname + extension):
                         search_start = time.time()
                         beamsearch_path, beamsearch_obj, beamsearch_tap_solved, _, _, _, _ = search(
-                            start_node, end_node, best_bound, beam_search=beam_search, beam_k=beam_k)
+                            start_node, end_node, best_bound, beam_search=beam_search, beam_k=k)
                         search_elapsed = time.time() - search_start + importance_elapsed
 
                         net_after, after_eq_tstt = state_after(damaged_links, save_dir, real=True)
